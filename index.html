@@ -256,6 +256,53 @@ input[type=text]::placeholder{color:var(--muted);}
   font-family:var(--mono);
   margin-top:6px;
 }
+
+.match-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:14px 16px 0;
+  margin-bottom:14px;
+}
+.match-card-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  margin-bottom:10px;
+}
+.match-count{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.match-count b{color:var(--teal);font-size:13px;}
+.match-scroll{max-height:320px;overflow-y:auto;margin:0 -16px;padding:0 16px 12px;}
+.match-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.match-table th{
+  position:sticky;top:0;
+  background:var(--panel-2);
+  text-align:left;
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--muted);
+  padding:6px 8px;
+  border-bottom:1px solid var(--line);
+}
+.match-table td{
+  padding:6px 8px;
+  border-bottom:1px solid var(--line);
+  color:var(--text);
+  white-space:nowrap;
+}
+.match-table td.mono{font-family:var(--mono);color:var(--amber);}
+.match-table tr.flagged-row td{background:rgba(226,87,76,0.07);}
+.match-table tr.only-row td{background:rgba(79,209,197,0.1);}
+.flag-dot{color:var(--red);font-weight:700;margin-left:3px;}
+.match-empty{color:var(--muted);text-align:center;padding:16px 0;font-size:13px;}
 </style>
 </head>
 <body>
@@ -365,6 +412,29 @@ input[type=text]::placeholder{color:var(--muted);}
           <option value="A">Rev A</option>
           <option value="B">Rev B</option>
         </select>
+      </div>
+    </div>
+
+    <div class="match-card">
+      <div class="match-card-header">
+        <p class="card-title" style="margin:0;">Matching Part Numbers</p>
+        <span class="match-count"><b id="matchCount">0</b> / <span id="matchTotal">0</span></span>
+      </div>
+      <div class="match-scroll">
+        <table class="match-table">
+          <thead>
+            <tr>
+              <th>P/N</th>
+              <th>Model</th>
+              <th>Region</th>
+              <th>Housing</th>
+              <th>OS</th>
+              <th>eSIM</th>
+              <th>Interface</th>
+            </tr>
+          </thead>
+          <tbody id="matchTableBody"></tbody>
+        </table>
       </div>
     </div>
 
@@ -584,54 +654,120 @@ function decodeRun(){
 document.getElementById('pnInput').addEventListener('input', decodeRun);
 
 // ---------- ENCODE ----------
+const ENCODE_AXES = {
+  region: ['EU','UK','US'],
+  housing: ['Light','Dark'],
+  os: ['Android','Linux'],
+  esim: ['.02','.32'],
+  iface: ['RS232','RS485'],
+};
+
+// All real (or at least nameable) SKU combinations. UK+Dark is excluded — no
+// country code has ever been defined for it, so there's no P/N to show.
+const ALL_ENCODE_COMBOS = (function(){
+  const combos = [];
+  ENCODE_AXES.region.forEach(region=>{
+    ENCODE_AXES.housing.forEach(housing=>{
+      if(region === 'UK' && housing === 'Dark') return;
+      ENCODE_AXES.os.forEach(os=>{
+        ENCODE_AXES.esim.forEach(esim=>{
+          ENCODE_AXES.iface.forEach(iface=>{
+            combos.push({region, housing, os, esim, iface});
+          });
+        });
+      });
+    });
+  });
+  return combos;
+})();
+
+function computePnForCombo(c){
+  let country = null;
+  if(c.region === 'EU') country = c.housing === 'Dark' ? 'EUB' : 'EUA';
+  else if(c.region === 'US') country = c.housing === 'Dark' ? 'NAB' : 'NAA';
+  else if(c.region === 'UK') country = 'EUC';
+
+  const osDigit = c.os === 'Android' ? '5' : '4';
+  const ptidDigit = c.region === 'UK' ? '1' : '0';
+  const osSeg = '7' + osDigit + ptidDigit;
+
+  let ceDigit = null;
+  if(c.esim === '.02' && c.iface === 'RS232') ceDigit = '4';
+  else if(c.esim === '.32' && c.iface === 'RS232') ceDigit = '5';
+  else if(c.esim === '.02' && c.iface === 'RS485') ceDigit = '6';
+  else if(c.esim === '.32' && c.iface === 'RS485') ceDigit = '7';
+  const codeSeg = ceDigit + '2';
+
+  return `M187-${osSeg}-${codeSeg}-${country}-6`;
+}
+
+function comboModel(c){
+  if(c.esim === '.02' && c.os === 'Android') return 'A';
+  if(c.esim === '.32' && c.os === 'Android') return 'B';
+  if(c.esim === '.02' && c.os === 'Linux') return 'E';
+  return 'F';
+}
+
+function renderMatchTable(matches){
+  document.getElementById('matchTotal').textContent = ALL_ENCODE_COMBOS.length;
+  document.getElementById('matchCount').textContent = matches.length;
+  const body = document.getElementById('matchTableBody');
+
+  if(!matches.length){
+    body.innerHTML = '<tr><td colspan="7" class="match-empty">No matching SKU — that combination (e.g. UK + Dark) isn\'t defined.</td></tr>';
+    return;
+  }
+
+  const only = matches.length === 1;
+  body.innerHTML = matches.map(c=>{
+    const pn = computePnForCombo(c);
+    const flagged = c.region === 'UK' && c.iface === 'RS485';
+    const rowClass = [flagged ? 'flagged-row' : '', only ? 'only-row' : ''].filter(Boolean).join(' ');
+    return `<tr class="${rowClass}">
+      <td class="mono">${pn}</td>
+      <td>UX700-4G-${comboModel(c)}</td>
+      <td>${c.region}</td>
+      <td>${c.housing}</td>
+      <td>${c.os}</td>
+      <td>${c.esim}</td>
+      <td>${c.iface}${flagged ? '<span class="flag-dot" title="Not confirmed to exist as a real SKU">!</span>' : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
 function encodeRun(){
-  const region = document.getElementById('encRegion').value;
-  const housing = document.getElementById('encHousing').value;
-  const os = document.getElementById('encOs').value;
-  const esim = document.getElementById('encEsim').value;
-  const iface = document.getElementById('encIface').value;
+  const filters = {
+    region: document.getElementById('encRegion').value,
+    housing: document.getElementById('encHousing').value,
+    os: document.getElementById('encOs').value,
+    esim: document.getElementById('encEsim').value,
+    iface: document.getElementById('encIface').value,
+  };
   const rev = document.getElementById('encRev').value;
 
+  const matches = ALL_ENCODE_COMBOS.filter(c=>
+    Object.keys(filters).every(k => !filters[k] || filters[k] === c[k])
+  );
+  renderMatchTable(matches);
+
   const results = document.getElementById('encResults');
-  if(!region || !housing || !os || !esim || !iface){
+  if(matches.length !== 1){
     results.classList.remove('show');
     return;
   }
 
-  const built = buildFromParams(os, esim, iface, region, housing, rev);
+  const only = matches[0];
+  const built = buildFromParams(only.os, only.esim, only.iface, only.region, only.housing, rev);
   const warnings = built.warnings.slice();
-
-  // Build the P/N itself
-  let country = null;
-  if(region === 'EU') country = housing === 'Dark' ? 'EUB' : 'EUA';
-  else if(region === 'US') country = housing === 'Dark' ? 'NAB' : 'NAA';
-  else if(region === 'UK') country = housing === 'Dark' ? null : 'EUC';
-
-  if(!country){
-    country = 'EU?';
-    warnings.push('No country code has been defined for UK + Dark yet — shown as a placeholder.');
-  }
-
-  const osDigit = os === 'Android' ? '5' : '4';
-  const ptidDigit = region === 'UK' ? '1' : '0';
-  const osSeg = '7' + osDigit + ptidDigit;
-
-  let ceDigit = null;
-  if(esim === '.02' && iface === 'RS232') ceDigit = '4';
-  else if(esim === '.32' && iface === 'RS232') ceDigit = '5';
-  else if(esim === '.02' && iface === 'RS485') ceDigit = '6';
-  else if(esim === '.32' && iface === 'RS485') ceDigit = '7';
-  const codeSeg = (ceDigit || '?') + '2';
-
-  const pn = `M187-${osSeg}-${codeSeg}-${country}-6`;
+  const pn = computePnForCombo(only);
 
   document.getElementById('encOutPn').textContent = pn;
   document.getElementById('encOutModel').textContent = built.model ? `UX700-4G-${built.model}` : 'Undefined';
   document.getElementById('encOutPtid').textContent = (built.hasPTID || built.hasStencil) ? 'PTID + STENCIL' : 'None';
   document.getElementById('encOutRegionDesc').textContent = built.regionDesc;
   const hEl = document.getElementById('encOutHousing');
-  hEl.textContent = housing;
-  hEl.className = 'v' + (housing==='Dark' ? ' dark' : '');
+  hEl.textContent = only.housing;
+  hEl.className = 'v' + (only.housing==='Dark' ? ' dark' : '');
   document.getElementById('encOutDesc').textContent = built.description;
   document.getElementById('encOutHwid').textContent = built.hwid;
 
@@ -645,6 +781,7 @@ function encodeRun(){
   }
   results.classList.add('show');
 }
+encodeRun();
 </script>
 </body>
 </html>
