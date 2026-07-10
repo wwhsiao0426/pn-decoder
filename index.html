@@ -439,8 +439,9 @@ input[type=text]::placeholder{color:var(--muted);}
       <div class="field">
         <label>HW Revision</label>
         <select id="encRev" onchange="encodeRun()">
-          <option value="A">Rev A - Old</option>
-          <option value="B">Rev B - New</option>
+          <option value="">— select —</option>
+          <option value="A">Rev A - Old Display</option>
+          <option value="B">Rev B - New Display</option>
         </select>
       </div>
     </div>
@@ -582,7 +583,7 @@ function buildFromParams(os, esim, iface, radioModule, color, stencil, rev){
   if(color === 'Dark') seg4 = seg4.slice(0,2) + 'D';
   let seg5 = '00C';
   if(hasStencil) seg5 = seg5.slice(0,2) + 'E';
-  const revSuffix = rev === 'A' ? 'A0' : 'A1';
+  const revSuffix = rev === 'B' ? 'A1' : 'A0';
   const hwid = ['U605','0007',seg3,seg4,seg5,revSuffix].join('-');
 
   return {model, description, hwid, warnings, hasPTID, hasStencil, regionDesc};
