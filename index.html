@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UX700-4G P/N Decoder</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --bg:#161a23;
+  --panel:#1f2531;
+  --panel-2:#252c3a;
+  --line:#333c4d;
+  --text:#e7eaf1;
+  --muted:#8b94a7;
+  --amber:#e8a33d;
+  --teal:#4fd1c5;
+  --red:#e2574c;
+  --mono:'IBM Plex Mono', monospace;
+  --sans:'Inter', sans-serif;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  padding:32px 20px 60px;
+}
+.wrap{max-width:920px;margin:0 auto;}
+h1{
+  font-family:var(--mono);
+  font-size:19px;
+  font-weight:600;
+  letter-spacing:0.02em;
+  margin:0 0 4px;
+  color:var(--text);
+}
+.sub{
+  color:var(--muted);
+  font-size:13px;
+  margin:0 0 20px;
+}
+.tabs{
+  display:flex;
+  gap:4px;
+  margin-bottom:26px;
+  border-bottom:1px solid var(--line);
+}
+.tab-btn{
+  background:none;
+  border:none;
+  color:var(--muted);
+  font-family:var(--mono);
+  font-size:13px;
+  letter-spacing:0.03em;
+  padding:10px 4px;
+  margin-right:22px;
+  cursor:pointer;
+  position:relative;
+  top:1px;
+}
+.tab-btn.active{
+  color:var(--amber);
+  border-bottom:2px solid var(--amber);
+}
+.panel{display:none;}
+.panel.active{display:block;}
+
+.field-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:12px;
+  margin-bottom:20px;
+}
+@media (max-width:640px){.field-grid{grid-template-columns:1fr 1fr;}}
+.field{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:10px 12px;
+}
+.field label{
+  display:block;
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:6px;
+}
+.field select{
+  width:100%;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:14px;
+  padding:8px 10px;
+  border-radius:5px;
+  outline:none;
+}
+.field select:focus{border-color:var(--amber);}
+
+.input-row{
+  display:flex;
+  gap:10px;
+  margin-bottom:8px;
+  flex-wrap:wrap;
+}
+input[type=text]{
+  flex:1;
+  min-width:220px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:16px;
+  letter-spacing:0.03em;
+  padding:12px 14px;
+  border-radius:6px;
+  outline:none;
+}
+input[type=text]:focus{border-color:var(--amber);}
+input[type=text]::placeholder{color:var(--muted);}
+.rev-toggle{
+  display:flex;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+.rev-toggle button{
+  background:var(--panel);
+  color:var(--muted);
+  border:none;
+  font-family:var(--mono);
+  font-size:13px;
+  padding:0 16px;
+  cursor:pointer;
+}
+.rev-toggle button.active{
+  background:var(--amber);
+  color:#1a1200;
+  font-weight:600;
+}
+.hint{
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:26px;
+}
+.hint code{color:var(--teal);font-family:var(--mono);}
+
+.trace{
+  position:relative;
+  margin:6px 0 30px;
+  min-height:10px;
+}
+.trace-string{
+  font-family:var(--mono);
+  font-size:20px;
+  letter-spacing:0.04em;
+  display:flex;
+  flex-wrap:wrap;
+  gap:2px;
+  margin-bottom:2px;
+}
+.seg{
+  padding:3px 6px;
+  border-radius:4px;
+  background:var(--panel-2);
+}
+.seg.tagged{background:rgba(232,163,61,0.14);color:var(--amber);}
+.seg-dash{color:var(--muted);padding:3px 0;}
+
+.results{display:none;}
+.results.show{display:block;}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+  margin-bottom:14px;
+}
+@media (max-width:640px){.grid{grid-template-columns:1fr;}}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:16px 18px;
+}
+.card-title{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin:0 0 10px;
+}
+.kv{display:flex;justify-content:space-between;font-size:14px;padding:4px 0;border-bottom:1px solid var(--line);}
+.kv:last-child{border-bottom:none;}
+.kv .k{color:var(--muted);}
+.kv .v{font-family:var(--mono);color:var(--text);text-align:right;}
+.kv .v.dark{color:var(--amber);}
+
+.desc-card, .hwid-card, .pn-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:16px 18px;
+  margin-bottom:14px;
+}
+.desc-string, .hwid-string, .pn-string{
+  font-family:var(--mono);
+  font-size:15px;
+  line-height:1.6;
+  color:var(--teal);
+  word-break:break-word;
+}
+.hwid-string{color:var(--amber);font-size:17px;}
+.pn-string{color:var(--text);font-size:19px;font-weight:600;}
+.copy-btn{
+  margin-top:10px;
+  background:none;
+  border:1px solid var(--line);
+  color:var(--muted);
+  font-family:var(--sans);
+  font-size:12px;
+  padding:5px 10px;
+  border-radius:5px;
+  cursor:pointer;
+}
+.copy-btn:hover{border-color:var(--teal);color:var(--teal);}
+
+.warnings{
+  background:rgba(226,87,76,0.08);
+  border:1px solid rgba(226,87,76,0.35);
+  border-radius:8px;
+  padding:14px 18px;
+  margin-bottom:14px;
+}
+.warnings-title{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--red);
+  margin:0 0 8px;
+}
+.warnings ul{margin:0;padding-left:18px;font-size:13px;color:var(--text);}
+.warnings li{margin-bottom:4px;}
+
+.error{
+  color:var(--red);
+  font-size:13px;
+  font-family:var(--mono);
+  margin-top:6px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>UX700-4G / UX700-A P/N Decoder</h1>
+  <p class="sub">Decode a Part Number, or build one from a spec.</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabDecodeBtn" onclick="switchTab('decode')">DECODE</button>
+    <button class="tab-btn" id="tabEncodeBtn" onclick="switchTab('encode')">ENCODE</button>
+  </div>
+
+  <!-- DECODE PANEL -->
+  <div class="panel active" id="panelDecode">
+    <div class="input-row">
+      <input type="text" id="pnInput" placeholder="e.g. M187-750-42-EUA-6" autocomplete="off" spellcheck="false">
+      <div class="rev-toggle">
+        <button id="decRevA" class="active" onclick="setDecRev('A')">Rev A</button>
+        <button id="decRevB" onclick="setDecRev('B')">Rev B</button>
+      </div>
+    </div>
+    <p class="hint">Rev A/B isn't encoded in the P/N — select it manually. Country code segment must match <code>EUA</code>, <code>EUB</code>, <code>EUC</code>, <code>NAA</code>, or <code>NAB</code>.</p>
+
+    <div class="trace" id="trace"></div>
+    <div id="errorBox"></div>
+
+    <div class="results" id="decResults">
+      <div class="warnings" id="decWarningsBox" style="display:none;">
+        <p class="warnings-title">Unconfirmed / flagged</p>
+        <ul id="decWarningsList"></ul>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <p class="card-title">Model Name</p>
+          <div class="kv"><span class="k">Model</span><span class="v" id="decOutModel">—</span></div>
+          <div class="kv"><span class="k">eSIM</span><span class="v" id="decOutEsim">—</span></div>
+          <div class="kv"><span class="k">SW</span><span class="v" id="decOutOs">—</span></div>
+        </div>
+        <div class="card">
+          <p class="card-title">HW Config</p>
+          <div class="kv"><span class="k">Region</span><span class="v" id="decOutRegion">—</span></div>
+          <div class="kv"><span class="k">Housing</span><span class="v" id="decOutHousing">—</span></div>
+          <div class="kv"><span class="k">Interface</span><span class="v" id="decOutIface">—</span></div>
+          <div class="kv"><span class="k">PTID / Stencil</span><span class="v" id="decOutPtid">—</span></div>
+        </div>
+      </div>
+      <div class="desc-card">
+        <p class="card-title">Description</p>
+        <div class="desc-string" id="decOutDesc">—</div>
+        <button class="copy-btn" onclick="copyText('decOutDesc')">Copy</button>
+      </div>
+      <div class="hwid-card">
+        <p class="card-title">Security HW ID</p>
+        <div class="hwid-string" id="decOutHwid">—</div>
+        <button class="copy-btn" onclick="copyText('decOutHwid')">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ENCODE PANEL -->
+  <div class="panel" id="panelEncode">
+    <div class="field-grid">
+      <div class="field">
+        <label>Region</label>
+        <select id="encRegion" onchange="encodeRun()">
+          <option value="">— select —</option>
+          <option value="EU">EU</option>
+          <option value="US">US</option>
+          <option value="UK">UK</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Housing</label>
+        <select id="encHousing" onchange="encodeRun()">
+          <option value="">— select —</option>
+          <option value="Light">Light</option>
+          <option value="Dark">Dark</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>OS</label>
+        <select id="encOs" onchange="encodeRun()">
+          <option value="">— select —</option>
+          <option value="Android">Android</option>
+          <option value="Linux">Linux</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>eSIM</label>
+        <select id="encEsim" onchange="encodeRun()">
+          <option value="">— select —</option>
+          <option value=".02">.02</option>
+          <option value=".32">.32</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Interface</label>
+        <select id="encIface" onchange="encodeRun()">
+          <option value="">— select —</option>
+          <option value="RS232">RS232</option>
+          <option value="RS485">RS485</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Rev</label>
+        <select id="encRev" onchange="encodeRun()">
+          <option value="A">Rev A</option>
+          <option value="B">Rev B</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="results" id="encResults">
+      <div class="warnings" id="encWarningsBox" style="display:none;">
+        <p class="warnings-title">Unconfirmed / flagged</p>
+        <ul id="encWarningsList"></ul>
+      </div>
+
+      <div class="pn-card">
+        <p class="card-title">Part Number</p>
+        <div class="pn-string" id="encOutPn">—</div>
+        <button class="copy-btn" onclick="copyText('encOutPn')">Copy</button>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <p class="card-title">Model Name</p>
+          <div class="kv"><span class="k">Model</span><span class="v" id="encOutModel">—</span></div>
+          <div class="kv"><span class="k">PTID / Stencil</span><span class="v" id="encOutPtid">—</span></div>
+        </div>
+        <div class="card">
+          <p class="card-title">HW Config</p>
+          <div class="kv"><span class="k">Region desc</span><span class="v" id="encOutRegionDesc">—</span></div>
+          <div class="kv"><span class="k">Housing</span><span class="v" id="encOutHousing">—</span></div>
+        </div>
+      </div>
+      <div class="desc-card">
+        <p class="card-title">Description</p>
+        <div class="desc-string" id="encOutDesc">—</div>
+        <button class="copy-btn" onclick="copyText('encOutDesc')">Copy</button>
+      </div>
+      <div class="hwid-card">
+        <p class="card-title">Security HW ID</p>
+        <div class="hwid-string" id="encOutHwid">—</div>
+        <button class="copy-btn" onclick="copyText('encOutHwid')">Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(tab){
+  document.getElementById('panelDecode').classList.toggle('active', tab==='decode');
+  document.getElementById('panelEncode').classList.toggle('active', tab==='encode');
+  document.getElementById('tabDecodeBtn').classList.toggle('active', tab==='decode');
+  document.getElementById('tabEncodeBtn').classList.toggle('active', tab==='encode');
+}
+
+function copyText(id){
+  const t = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(t);
+}
+
+const COUNTRY_MAP = {
+  EUA: {region:'EU', housing:'Light', ukFlags:false},
+  EUB: {region:'EU', housing:'Dark',  ukFlags:false},
+  EUC: {region:'UK', housing:'Light', ukFlags:true},
+  NAA: {region:'US', housing:'Light', ukFlags:false},
+  NAB: {region:'US', housing:'Dark',  ukFlags:false},
+};
+
+const ESIM_IFACE_MAP = {
+  '4': {esim:'.02', iface:'RS232'},
+  '5': {esim:'.32', iface:'RS232'},
+  '6': {esim:'.02', iface:'RS485'},
+  '7': {esim:'.32', iface:'RS485'},
+};
+
+// Shared: given os/esim/iface/region/housing, compute model/description/hwid + warnings
+function buildFromParams(os, esim, iface, region, housing, rev){
+  const warnings = [];
+  const ukFlags = region === 'UK';
+
+  if(region === 'UK' && housing === 'Dark'){
+    warnings.push('UK + Dark Mode has not been defined yet (no letter code exists) — treating as Dark for description/HWID purposes only.');
+  }
+  if(region === 'UK' && iface === 'RS485'){
+    warnings.push('RS485 + UK combination has not been confirmed to exist as a real SKU.');
+  }
+
+  let model = null;
+  if(esim === '.02' && os === 'Android') model = 'A';
+  else if(esim === '.32' && os === 'Android') model = 'B';
+  else if(esim === '.02' && os === 'Linux') model = 'E';
+  else if(esim === '.32' && os === 'Linux') model = 'F';
+
+  const regionDesc = region === 'US' ? 'NA 4G' : 'EM 4G';
+  const hasStencil = ukFlags;
+  const hasPTID = ukFlags;
+
+  const descParts = [];
+  descParts.push(`UX700-4G-${model || '?'}`);
+  if(hasStencil) descParts.push('STENCIL');
+  descParts.push(regionDesc);
+  descParts.push(os === 'Android' ? 'ANDROID' : os === 'Linux' ? 'ENGAGE' : '?');
+  descParts.push('DB WIF AC/BT/ETH/USB/MDB');
+  if(hasPTID) descParts.push('PTID');
+  descParts.push('NO PSU');
+  if(housing === 'Dark') descParts.push('DARK');
+  descParts.push(esim === '.32' ? 'ESIM32' : 'ESIM');
+  descParts.push('5/2MP CAM');
+  descParts.push('2GB/32GB');
+  descParts.push(iface === 'RS485' ? 'RS485' : 'PCI 6');
+  const description = descParts.join(', ');
+
+  let seg3 = '07D2';
+  if(iface === 'RS485') seg3 = '1' + seg3.slice(1);
+  let seg4 = '030';
+  if(housing === 'Dark') seg4 = seg4.slice(0,2) + 'D';
+  let seg5 = '00C';
+  if(hasStencil) seg5 = seg5.slice(0,2) + 'E';
+  const revSuffix = rev === 'A' ? 'A0' : 'A1';
+  const hwid = ['U605','0007',seg3,seg4,seg5,revSuffix].join('-');
+
+  return {model, description, hwid, warnings, hasPTID, hasStencil, regionDesc};
+}
+
+// ---------- DECODE ----------
+let currentDecRev = 'A';
+function setDecRev(rev){
+  currentDecRev = rev;
+  document.getElementById('decRevA').classList.toggle('active', rev==='A');
+  document.getElementById('decRevB').classList.toggle('active', rev==='B');
+  decodeRun();
+}
+
+function renderTrace(tokens, countryIdx){
+  const trace = document.getElementById('trace');
+  if(!tokens.length){ trace.innerHTML=''; return; }
+  let html = '<div class="trace-string">';
+  tokens.forEach((tok, i)=>{
+    const tagged = (i===countryIdx || i===countryIdx-1 || i===countryIdx-2);
+    html += `<span class="seg ${tagged?'tagged':''}">${tok}</span>`;
+    if(i < tokens.length-1) html += '<span class="seg-dash">-</span>';
+  });
+  html += '</div>';
+  trace.innerHTML = html;
+}
+
+function decodeRun(){
+  const raw = document.getElementById('pnInput').value.trim().toUpperCase();
+  const results = document.getElementById('decResults');
+  const errorBox = document.getElementById('errorBox');
+  errorBox.innerHTML = '';
+
+  if(!raw){
+    results.classList.remove('show');
+    renderTrace([], -1);
+    return;
+  }
+
+  const tokens = raw.split('-');
+  const countryIdx = tokens.findIndex(t=>/^(EU[ABC]|NA[AB])$/.test(t));
+  renderTrace(tokens, countryIdx);
+
+  if(countryIdx === -1){
+    errorBox.innerHTML = '<div class="error">No recognized country/region code found (expected EUA / EUB / EUC / NAA / NAB).</div>';
+    results.classList.remove('show');
+    return;
+  }
+
+  const countryCode = tokens[countryIdx];
+  const codeSeg = tokens[countryIdx-1] || '';
+  const osSeg = tokens[countryIdx-2] || '';
+  const trailing = tokens[countryIdx+1];
+  const parseWarnings = [];
+  if(trailing !== undefined && trailing !== '6'){
+    parseWarnings.push(`Trailing segment "${trailing}" isn't the usual "6" — always fixed regardless of RS232/RS485, so this is unexpected.`);
+  }
+
+  const countryInfo = COUNTRY_MAP[countryCode];
+
+  const osDigits = osSeg.split('');
+  if(osDigits.length !== 3) parseWarnings.push(`OS/PTID segment "${osSeg}" is not 3 digits as expected — check parsing.`);
+  if(osDigits[0] !== '7') parseWarnings.push(`Unattended digit is "${osDigits[0]||'?'}", expected "7" for UX700-A.`);
+  const osDigit = osDigits[1];
+  const os = osDigit === '5' ? 'Android' : osDigit === '4' ? 'Linux' : null;
+  if(!os) parseWarnings.push(`OS digit "${osDigit||'?'}" not recognized (expected 5=Android, 4=Linux).`);
+  const hasPTIDfromPN = osDigits[2] === '1';
+  if(hasPTIDfromPN !== countryInfo.ukFlags) parseWarnings.push(`PTID digit ("${osDigits[2]}") doesn't match country code expectation for ${countryCode}.`);
+
+  const cDigits = codeSeg.split('');
+  if(cDigits.length !== 2) parseWarnings.push(`eSIM/interface/memory segment "${codeSeg}" is not 2 digits as expected — check parsing.`);
+  const esimIface = ESIM_IFACE_MAP[cDigits[0]];
+  if(!esimIface) parseWarnings.push(`eSIM/interface digit "${cDigits[0]||'?'}" not recognized (expected 4/5/6/7).`);
+  if(cDigits[1] !== '2') parseWarnings.push(`Memory digit "${cDigits[1]||'?'}" isn't the usual "2" (2GB/32GB) — meaning unconfirmed.`);
+
+  const esim = esimIface ? esimIface.esim : null;
+  const iface = esimIface ? esimIface.iface : null;
+
+  const built = buildFromParams(os, esim, iface, countryInfo.region, countryInfo.housing, currentDecRev);
+  const warnings = parseWarnings.concat(built.warnings);
+
+  document.getElementById('decOutModel').textContent = built.model ? `UX700-4G-${built.model}` : 'Undefined';
+  document.getElementById('decOutEsim').textContent = esim || '—';
+  document.getElementById('decOutOs').textContent = os || '—';
+  document.getElementById('decOutRegion').textContent = countryInfo.region;
+  const housingEl = document.getElementById('decOutHousing');
+  housingEl.textContent = countryInfo.housing;
+  housingEl.className = 'v' + (countryInfo.housing==='Dark' ? ' dark' : '');
+  document.getElementById('decOutIface').textContent = iface || '—';
+  document.getElementById('decOutPtid').textContent = (built.hasPTID || built.hasStencil) ? 'PTID + STENCIL' : 'None';
+  document.getElementById('decOutDesc').textContent = built.description;
+  document.getElementById('decOutHwid').textContent = built.hwid;
+
+  const warningsBox = document.getElementById('decWarningsBox');
+  const warningsList = document.getElementById('decWarningsList');
+  if(warnings.length){
+    warningsList.innerHTML = warnings.map(w=>`<li>${w}</li>`).join('');
+    warningsBox.style.display = 'block';
+  } else {
+    warningsBox.style.display = 'none';
+  }
+  results.classList.add('show');
+}
+document.getElementById('pnInput').addEventListener('input', decodeRun);
+
+// ---------- ENCODE ----------
+function encodeRun(){
+  const region = document.getElementById('encRegion').value;
+  const housing = document.getElementById('encHousing').value;
+  const os = document.getElementById('encOs').value;
+  const esim = document.getElementById('encEsim').value;
+  const iface = document.getElementById('encIface').value;
+  const rev = document.getElementById('encRev').value;
+
+  const results = document.getElementById('encResults');
+  if(!region || !housing || !os || !esim || !iface){
+    results.classList.remove('show');
+    return;
+  }
+
+  const built = buildFromParams(os, esim, iface, region, housing, rev);
+  const warnings = built.warnings.slice();
+
+  // Build the P/N itself
+  let country = null;
+  if(region === 'EU') country = housing === 'Dark' ? 'EUB' : 'EUA';
+  else if(region === 'US') country = housing === 'Dark' ? 'NAB' : 'NAA';
+  else if(region === 'UK') country = housing === 'Dark' ? null : 'EUC';
+
+  if(!country){
+    country = 'EU?';
+    warnings.push('No country code has been defined for UK + Dark yet — shown as a placeholder.');
+  }
+
+  const osDigit = os === 'Android' ? '5' : '4';
+  const ptidDigit = region === 'UK' ? '1' : '0';
+  const osSeg = '7' + osDigit + ptidDigit;
+
+  let ceDigit = null;
+  if(esim === '.02' && iface === 'RS232') ceDigit = '4';
+  else if(esim === '.32' && iface === 'RS232') ceDigit = '5';
+  else if(esim === '.02' && iface === 'RS485') ceDigit = '6';
+  else if(esim === '.32' && iface === 'RS485') ceDigit = '7';
+  const codeSeg = (ceDigit || '?') + '2';
+
+  const pn = `M187-${osSeg}-${codeSeg}-${country}-6`;
+
+  document.getElementById('encOutPn').textContent = pn;
+  document.getElementById('encOutModel').textContent = built.model ? `UX700-4G-${built.model}` : 'Undefined';
+  document.getElementById('encOutPtid').textContent = (built.hasPTID || built.hasStencil) ? 'PTID + STENCIL' : 'None';
+  document.getElementById('encOutRegionDesc').textContent = built.regionDesc;
+  const hEl = document.getElementById('encOutHousing');
+  hEl.textContent = housing;
+  hEl.className = 'v' + (housing==='Dark' ? ' dark' : '');
+  document.getElementById('encOutDesc').textContent = built.description;
+  document.getElementById('encOutHwid').textContent = built.hwid;
+
+  const warningsBox = document.getElementById('encWarningsBox');
+  const warningsList = document.getElementById('encWarningsList');
+  if(warnings.length){
+    warningsList.innerHTML = warnings.map(w=>`<li>${w}</li>`).join('');
+    warningsBox.style.display = 'block';
+  } else {
+    warningsBox.style.display = 'none';
+  }
+  results.classList.add('show');
+}
+</script>
+</body>
+</html>
