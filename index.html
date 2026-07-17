@@ -311,6 +311,37 @@ input[type=text]::placeholder{color:var(--muted);}
 .match-table tr.only-row td{background:rgba(79,209,197,0.1);}
 .flag-dot{color:var(--red);font-weight:700;margin-left:3px;}
 .match-empty{color:var(--muted);text-align:center;padding:16px 0;font-size:13px;}
+
+.ref-facts{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:16px 18px;
+  margin-bottom:20px;
+}
+.ref-mono{font-family:var(--mono);color:var(--amber);}
+.ref-pn{
+  font-family:var(--mono);
+  font-size:17px;
+  color:var(--text);
+  font-weight:600;
+}
+.ref-segment{margin-bottom:22px;}
+.ref-segment-title{
+  font-family:var(--mono);
+  font-size:14px;
+  color:var(--text);
+  margin:0 0 8px;
+}
+.ref-segment-title b{color:var(--amber);}
+.ref-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+.ref-table td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
+.ref-table tr:last-child td{border-bottom:none;}
+.ref-table td.ref-code{font-family:var(--mono);color:var(--teal);width:56px;font-weight:600;}
+.ref-table tr.ref-current td.ref-code{color:var(--amber);}
+.ref-table tr.ref-current{background:rgba(232,163,61,0.08);}
+.ref-highlight{color:var(--amber);font-weight:700;}
+.ref-note{font-size:12px;color:var(--muted);margin:8px 0 0;}
 </style>
 </head>
 <body>
@@ -321,6 +352,7 @@ input[type=text]::placeholder{color:var(--muted);}
   <div class="tabs">
     <button class="tab-btn active" id="tabDecodeBtn" onclick="switchTab('decode')">DECODE</button>
     <button class="tab-btn" id="tabEncodeBtn" onclick="switchTab('encode')">ENCODE</button>
+    <button class="tab-btn" id="tabReferenceBtn" onclick="switchTab('reference')">REFERENCE</button>
   </div>
 
   <!-- DECODE PANEL -->
@@ -514,14 +546,96 @@ input[type=text]::placeholder{color:var(--muted);}
       </div>
     </div>
   </div>
+
+  <!-- REFERENCE PANEL -->
+  <div class="panel" id="panelReference">
+    <div class="ref-facts">
+      <div class="kv"><span class="k">Product Name for EMV</span><span class="v">UX700</span></div>
+      <div class="kv"><span class="k">Model Name(s) for EMV and Regulatory Certification</span><span class="v">UX700-4G-A</span></div>
+      <div class="kv"><span class="k">Security Model Name for PCI</span><span class="v">UX700-A</span></div>
+      <div class="kv"><span class="k">HW ID</span><span class="v">To be defined by the security team</span></div>
+    </div>
+
+    <p class="card-title" style="margin:0 0 4px;">UX700 M-Level Part Number Options</p>
+    <p class="ref-pn" style="margin:0 0 20px;">M187-def-gh-xnn-o</p>
+
+    <div class="ref-segment">
+      <p class="ref-segment-title"><b>d</b> = Major NEO Hardware Revision</p>
+      <table class="ref-table">
+        <tr><td class="ref-code">0</td><td>Multi-Lane</td></tr>
+        <tr><td class="ref-code">1</td><td>PINpad</td></tr>
+        <tr><td class="ref-code">2</td><td>Countertop</td></tr>
+        <tr><td class="ref-code">3</td><td>Portable</td></tr>
+        <tr><td class="ref-code">4</td><td>Mobile</td></tr>
+        <tr><td class="ref-code">5</td><td>Petro</td></tr>
+        <tr class="ref-current"><td class="ref-code">7</td><td class="ref-highlight">Unattended</td></tr>
+      </table>
+    </div>
+
+    <div class="ref-segment">
+      <p class="ref-segment-title"><b>e</b> = Application Processor, Wireless Features, Operating System</p>
+      <table class="ref-table">
+        <tr><td class="ref-code">0</td><td>QCS2290, DB WiFi 802.11ac, BT 5.0, VOS3</td></tr>
+        <tr><td class="ref-code">1</td><td>QCS2290, DB WiFi 802.11ac, BT 5.0, AVOS</td></tr>
+        <tr><td class="ref-code">2</td><td>reserved</td></tr>
+        <tr><td class="ref-code">3</td><td>reserved</td></tr>
+        <tr class="ref-current"><td class="ref-code">4</td><td class="ref-highlight">QCM2290, EM or NA, 4G LTE, DB WiFi 802.11ac, BT 5.0, VOS3</td></tr>
+        <tr class="ref-current"><td class="ref-code">5</td><td class="ref-highlight">QCM2290, EM or NA, 4G LTE, DB WiFi 802.11ac, BT 5.0, VAOS</td></tr>
+      </table>
+    </div>
+
+    <div class="ref-segment">
+      <p class="ref-segment-title"><b>f</b> = Payment Options</p>
+      <table class="ref-table">
+        <tr class="ref-current"><td class="ref-code">0</td><td class="ref-highlight">EMV, CLTS, PSCR, MSR</td></tr>
+        <tr class="ref-current"><td class="ref-code">1</td><td class="ref-highlight">EMV, CLTS, PSCR, MSR, PTID</td></tr>
+      </table>
+    </div>
+
+    <div class="ref-segment">
+      <p class="ref-segment-title"><b>g</b> = Hardware Options</p>
+      <table class="ref-table">
+        <tr><td class="ref-code">2</td><td>UWB, 2MP FF Camera, 5MP FF Camera, Optical Sensor, USB-C, x3 SAM Slots</td></tr>
+        <tr><td class="ref-code">3</td><td>2MP FF Camera, 5MP FF Camera, Optical Sensor, USB-C, x3 SAM Slots</td></tr>
+        <tr><td class="ref-code">4</td><td>2MP FF Camera, 5MP FF Camera, Optical Sensor, USB-C, eSIM, SIM/SAM slot, x2 SAM slots</td></tr>
+        <tr><td class="ref-code">5</td><td>2MP FF Camera, 5MP FF Camera, Optical Sensor, USB-C, eSIM32, SIM/SAM slot, x2 SAM slots</td></tr>
+        <tr><td class="ref-code">6</td><td>2MP FF Camera, 5MP FF Camera, Optical Sensor, USB-C, eSIM, SIM/SAM slot, x2 SAM slots, <span class="ref-highlight">RS485</span></td></tr>
+        <tr><td class="ref-code">7</td><td>2MP FF Camera, 5MP FF Camera, Optical Sensor, USB-C, eSIM32, SIM/SAM slot, x2 SAM slots, <span class="ref-highlight">RS485</span></td></tr>
+        <tr><td class="ref-code">8</td><td>2MP FF Camera, Optical Sensor, USB-C, eSIM32, SIM/SAM slot, x2 SAM slots</td></tr>
+        <tr><td class="ref-code">9</td><td>2MP FF Camera, Optical Sensor, USB-C, eSIM32, SIM/SAM slot, x2 SAM slots, RS485</td></tr>
+      </table>
+    </div>
+
+    <div class="ref-segment">
+      <p class="ref-segment-title"><b>h</b> = Memory Options</p>
+      <table class="ref-table">
+        <tr><td class="ref-code">1</td><td>1GB DDR / 16GB Flash</td></tr>
+        <tr class="ref-current"><td class="ref-code">2</td><td class="ref-highlight">2GB DDR / 32GB Flash</td></tr>
+        <tr><td class="ref-code">3</td><td>3GB DDR / 32GB Flash</td></tr>
+      </table>
+    </div>
+
+    <div class="ref-segment">
+      <p class="ref-segment-title"><b>xxn</b> = Country code and localization</p>
+      <table class="ref-table">
+        <tr><td colspan="2">Includes customization for color and branding</td></tr>
+        <tr><td colspan="2">Includes customization for eSIM carrier configuration</td></tr>
+      </table>
+      <p class="ref-note">This is the segment the DECODE / ENCODE tabs work with, in more detail (Radio Module, Color, Navigator Stencil).</p>
+    </div>
+
+    <p class="ref-note">Amber-highlighted rows are the values this decoder currently covers (UX700-4G-A, Unattended). Other rows document the full UX700 M-Level part number scheme for reference.</p>
+  </div>
 </div>
 
 <script>
 function switchTab(tab){
   document.getElementById('panelDecode').classList.toggle('active', tab==='decode');
   document.getElementById('panelEncode').classList.toggle('active', tab==='encode');
+  document.getElementById('panelReference').classList.toggle('active', tab==='reference');
   document.getElementById('tabDecodeBtn').classList.toggle('active', tab==='decode');
   document.getElementById('tabEncodeBtn').classList.toggle('active', tab==='encode');
+  document.getElementById('tabReferenceBtn').classList.toggle('active', tab==='reference');
 }
 
 function copyText(id){
