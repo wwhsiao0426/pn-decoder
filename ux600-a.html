@@ -357,6 +357,7 @@ input[type=text]::placeholder{color:var(--muted);}
           <p class="card-title">Model Name</p>
           <div class="kv"><span class="k">Model</span><span class="v" id="decOutModel">—</span></div>
           <div class="kv"><span class="k">eSIM</span><span class="v" id="decOutEsim">—</span></div>
+          <div class="kv"><span class="k">Memory</span><span class="v" id="decOutMemory">—</span></div>
           <div class="kv"><span class="k">SW</span><span class="v" id="decOutOs">—</span></div>
         </div>
         <div class="card">
@@ -446,6 +447,14 @@ input[type=text]::placeholder{color:var(--muted);}
           <option value=".32">.32</option>
         </select>
       </div>
+      <div class="field">
+        <label>Memory</label>
+        <select id="encMemory" onchange="encodeRun()">
+          <option value="">— select —</option>
+          <option value="1">1GB DDR / 16GB Flash</option>
+          <option value="2">2GB DDR / 32GB Flash</option>
+        </select>
+      </div>
       <div class="field na">
         <label>Interface</label>
         <select disabled><option>N/A</option></select>
@@ -476,6 +485,7 @@ input[type=text]::placeholder{color:var(--muted);}
               <th data-key="pscr" onclick="onSortClick('pscr')">PSCR<span class="sort-arrow"></span></th>
               <th data-key="os" onclick="onSortClick('os')">OS<span class="sort-arrow"></span></th>
               <th data-key="esim" onclick="onSortClick('esim')">eSIM<span class="sort-arrow"></span></th>
+              <th data-key="memory" onclick="onSortClick('memory')">Memory<span class="sort-arrow"></span></th>
               <th data-key="hwid" onclick="onSortClick('hwid')">Security HWID<span class="sort-arrow"></span></th>
             </tr>
           </thead>
@@ -565,6 +575,7 @@ input[type=text]::placeholder{color:var(--muted);}
     <div class="ref-segment">
       <p class="ref-segment-title"><b>h</b> = Memory Options</p>
       <table class="ref-table">
+        <tr class="ref-current"><td class="ref-code">1</td><td class="ref-highlight">1GB DDR / 16GB Flash</td></tr>
         <tr class="ref-current"><td class="ref-code">2</td><td class="ref-highlight">2GB DDR / 32GB Flash</td></tr>
         <tr><td class="ref-code">3</td><td>3GB DDR / 32GB Flash</td></tr>
       </table>
@@ -630,10 +641,15 @@ function modelKeyToName(key){
   return `UX600-${prefix}-${letter}`;
 }
 
-// Shared: given os/esim/pscr/radioModule/color, compute model/description/hwid.
+const MEMORY_LABELS = {
+  '1': '1GB/16GB',
+  '2': '2GB/32GB',
+};
+
+// Shared: given os/esim/pscr/memory/radioModule/color, compute model/description/hwid.
 // UX600 has no Interface, Navigator Stencil, or HW Revision variation — those
 // segments of the Security HWID are always fixed (03D2 / 00C / A0).
-function buildFromParams(os, esim, pscr, radioModule, color){
+function buildFromParams(os, esim, pscr, memory, radioModule, color){
   const modelKey = paramsToModelKey(esim, os, pscr);
   const model = modelKeyToName(modelKey);
   const hasPscr = pscr === 'Yes';
@@ -649,7 +665,7 @@ function buildFromParams(os, esim, pscr, radioModule, color){
   descParts.push(esim === '.32' ? 'ESIM32' : 'ESIM');
   descParts.push('CAMERA');
   descParts.push(hasPscr ? 'PSCR/CTLS' : 'CTLS');
-  descParts.push('2GB/32GB');
+  descParts.push(MEMORY_LABELS[memory] || '2GB/32GB');
   const description = descParts.join(', ');
 
   const seg2 = hasPscr ? '0006' : '0004';
@@ -720,13 +736,16 @@ function decodeRun(){
   if(cDigits.length !== 2) parseWarnings.push(`eSIM/memory segment "${codeSeg}" is not 2 digits as expected — check parsing.`);
   const esim = cDigits[0] === '0' ? '.02' : cDigits[0] === '1' ? '.32' : null;
   if(!esim) parseWarnings.push(`eSIM digit "${cDigits[0]||'?'}" not recognized (expected 0=.02, 1=.32).`);
-  if(cDigits[1] !== '2') parseWarnings.push(`Memory digit "${cDigits[1]||'?'}" isn't the usual "2" (2GB/32GB) — meaning unconfirmed.`);
+  const memoryDigit = cDigits[1];
+  const memoryLabel = MEMORY_LABELS[memoryDigit];
+  if(!memoryLabel) parseWarnings.push(`Memory digit "${memoryDigit||'?'}" isn't 1 or 2 — only those are confirmed for UX600.`);
 
-  const built = buildFromParams(os, esim, pscr, countryInfo.radioModule, countryInfo.color);
+  const built = buildFromParams(os, esim, pscr, memoryDigit, countryInfo.radioModule, countryInfo.color);
   const warnings = parseWarnings;
 
   document.getElementById('decOutModel').textContent = built.model || 'Undefined';
   document.getElementById('decOutEsim').textContent = esim || '—';
+  document.getElementById('decOutMemory').textContent = memoryLabel || '—';
   document.getElementById('decOutOs').textContent = os || '—';
   document.getElementById('decOutRegion').textContent = countryInfo.radioModule;
   const housingEl = document.getElementById('decOutHousing');
@@ -769,6 +788,7 @@ const ENCODE_AXES = {
   pscr: ['Yes','No'],
   os: ['Android','Linux'],
   esim: ['.02','.32'],
+  memory: ['1','2'],
 };
 
 const ALL_ENCODE_COMBOS = (function(){
@@ -778,7 +798,9 @@ const ALL_ENCODE_COMBOS = (function(){
       ENCODE_AXES.pscr.forEach(pscr=>{
         ENCODE_AXES.os.forEach(os=>{
           ENCODE_AXES.esim.forEach(esim=>{
-            combos.push({radioModule, color, pscr, os, esim});
+            ENCODE_AXES.memory.forEach(memory=>{
+              combos.push({radioModule, color, pscr, os, esim, memory});
+            });
           });
         });
       });
@@ -793,7 +815,7 @@ function computePnForCombo(c){
   const pscrDigit = c.pscr === 'Yes' ? '0' : '1';
   const osSeg = '7' + osDigit + pscrDigit;
   const eDigit = c.esim === '.02' ? '0' : '1';
-  const codeSeg = eDigit + '2';
+  const codeSeg = eDigit + c.memory;
   return `M185-${osSeg}-${codeSeg}-${country}`;
 }
 
@@ -889,6 +911,7 @@ function sortMatches(matches){
     pscr: c => c.pscr,
     os: c => c.os,
     esim: c => c.esim,
+    memory: c => c.memory,
     hwid: c => computeHwidPlain(c.pscr, c.color),
   };
   const keyFn = keyFns[matchSort.key];
@@ -916,7 +939,7 @@ function renderMatchTable(matches){
   updateSortHeaders();
 
   if(!matches.length){
-    body.innerHTML = '<tr><td colspan="8" class="match-empty">No matching SKU for this combination.</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" class="match-empty">No matching SKU for this combination.</td></tr>';
     return;
   }
 
@@ -935,6 +958,7 @@ function renderMatchTable(matches){
       <td>${c.pscr}</td>
       <td>${c.os}</td>
       <td>${c.esim}</td>
+      <td>${MEMORY_LABELS[c.memory]}</td>
       <td class="mono">${hwid}</td>
     </tr>`;
   }).join('');
@@ -949,6 +973,7 @@ function encodeRun(){
     pscr: document.getElementById('encPscr').value,
     os: document.getElementById('encOs').value,
     esim: document.getElementById('encEsim').value,
+    memory: document.getElementById('encMemory').value,
   };
 
   const matches = ALL_ENCODE_COMBOS.filter(c=>
@@ -965,7 +990,7 @@ function encodeRun(){
   }
 
   const only = matches[0];
-  const built = buildFromParams(only.os, only.esim, only.pscr, only.radioModule, only.color);
+  const built = buildFromParams(only.os, only.esim, only.pscr, only.memory, only.radioModule, only.color);
   const pn = computePnForCombo(only);
 
   document.getElementById('encOutPn').textContent = pn;
