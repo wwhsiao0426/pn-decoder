@@ -1175,6 +1175,8 @@ function applyFormMode(){
   setSelectNA('encEsim', ml);
   setSelectNA('encMemory', ml);
   setSelectNA('encIface', ml);
+  setSelectNA('encStencil', ml);
+  setSelectNA('encPtid', ml);
   setOptionsDisabled('encColor', ['Dark'], ml);   // ML is Light only
   if(ml && getEnc('encColor').value !== 'Light') getEnc('encColor').value = 'Light';
   setOptionsDisabled('encModel', ['A','B','E','F'], ml); // WWA/ML -> only ML models
@@ -1314,8 +1316,8 @@ function encodeRun(){
   const f = {
     radioModule: selVal('encRadioModule'),
     color: getEnc('encColor').value,
-    stencil: getEnc('encStencil').value,
-    ptid: getEnc('encPtid').value,
+    stencil: selVal('encStencil'),
+    ptid: selVal('encPtid'),
     os: getEnc('encOs').value,
     esim: selVal('encEsim'),
     memory: selVal('encMemory'),
@@ -1327,7 +1329,7 @@ function encodeRun(){
     if(countryCode && comboCountry(c) !== countryCode) return false;
     if(c.family === 'ML'){
       // ML only has OS + Color axes; any 4G-only axis being set excludes ML.
-      if(f.radioModule || f.esim || f.memory || f.iface || f.ptid) return false;
+      if(f.radioModule || f.esim || f.memory || f.iface || f.stencil || f.ptid) return false;
       if(f.os && f.os !== c.os) return false;
       if(f.color && f.color !== c.color) return false;
       return true;
