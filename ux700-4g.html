@@ -386,7 +386,7 @@ input[type=text]::placeholder{color:var(--muted);}
         <button id="decRevB" onclick="setDecRev('B')">Rev B</button>
       </div>
     </div>
-    <p class="hint">Rev A/B isn't encoded in the P/N — select it manually. Country code segment must match <code>EUA</code>, <code>EUB</code>, <code>EUC</code>, <code>EUL</code>, <code>NAA</code>, <code>NAB</code>, or <code>WWA</code> (WWA = ML models).</p>
+    <p class="hint">Rev A/B isn't encoded in the P/N — select it manually. Country code segment must match <code>EUA</code>, <code>EUB</code>, <code>EUC</code>, <code>EUD</code>, <code>EUL</code>, <code>NAA</code>, <code>NAB</code>, or <code>WWA</code> (WWA = ML models).</p>
 
     <div class="trace" id="trace"></div>
     <div id="errorBox"></div>
@@ -409,7 +409,8 @@ input[type=text]::placeholder{color:var(--muted);}
           <div class="kv"><span class="k">Region</span><span class="v" id="decOutRegion">—</span></div>
           <div class="kv"><span class="k">Housing</span><span class="v" id="decOutHousing">—</span></div>
           <div class="kv"><span class="k">Interface</span><span class="v" id="decOutIface">—</span></div>
-          <div class="kv"><span class="k">PTID / Stencil</span><span class="v" id="decOutPtid">—</span></div>
+          <div class="kv"><span class="k">Navigator Stencil</span><span class="v" id="decOutStencil">—</span></div>
+          <div class="kv"><span class="k">PTID</span><span class="v" id="decOutPtid">—</span></div>
         </div>
       </div>
       <div class="desc-card">
@@ -447,6 +448,7 @@ input[type=text]::placeholder{color:var(--muted);}
           <option value="EUA">EUA</option>
           <option value="EUB">EUB</option>
           <option value="EUC">EUC</option>
+          <option value="EUD">EUD</option>
           <option value="EUL">EUL</option>
           <option value="NAA">NAA</option>
           <option value="NAB">NAB</option>
@@ -472,6 +474,14 @@ input[type=text]::placeholder{color:var(--muted);}
       <div class="field">
         <label>Navigator Stencil</label>
         <select id="encStencil" onchange="onCountryPartsChange()">
+          <option value="">— select —</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>PTID</label>
+        <select id="encPtid" onchange="encodeRun()">
           <option value="">— select —</option>
           <option value="Yes">Yes</option>
           <option value="No">No</option>
@@ -533,6 +543,7 @@ input[type=text]::placeholder{color:var(--muted);}
               <th data-key="radioModule" onclick="onSortClick('radioModule')">Radio Module<span class="sort-arrow"></span></th>
               <th data-key="color" onclick="onSortClick('color')">Color<span class="sort-arrow"></span></th>
               <th data-key="stencil" onclick="onSortClick('stencil')">Navigator Stencil<span class="sort-arrow"></span></th>
+              <th data-key="ptid" onclick="onSortClick('ptid')">PTID<span class="sort-arrow"></span></th>
               <th data-key="os" onclick="onSortClick('os')">OS<span class="sort-arrow"></span></th>
               <th data-key="esim" onclick="onSortClick('esim')">eSIM<span class="sort-arrow"></span></th>
               <th data-key="memory" onclick="onSortClick('memory')">Memory<span class="sort-arrow"></span></th>
@@ -561,7 +572,8 @@ input[type=text]::placeholder{color:var(--muted);}
         <div class="card">
           <p class="card-title">Model Name</p>
           <div class="kv"><span class="k">Model</span><span class="v" id="encOutModel">—</span></div>
-          <div class="kv"><span class="k">PTID / Stencil</span><span class="v" id="encOutPtid">—</span></div>
+          <div class="kv"><span class="k">Navigator Stencil</span><span class="v" id="encOutStencil">—</span></div>
+          <div class="kv"><span class="k">PTID</span><span class="v" id="encOutPtid">—</span></div>
         </div>
         <div class="card">
           <p class="card-title">HW Config</p>
@@ -676,6 +688,7 @@ const COUNTRY_MAP = {
   EUA: {radioModule:'EM', color:'Light', stencil:'No'},
   EUB: {radioModule:'EM', color:'Dark',  stencil:'No'},
   EUC: {radioModule:'EM', color:'Light', stencil:'Yes'},
+  EUD: {radioModule:'EM', color:'Dark',  stencil:'Yes'},
   EUL: {radioModule:'EM', color:'Dark',  stencil:'No'},
   NAA: {radioModule:'NA', color:'Light', stencil:'No'},
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
@@ -722,14 +735,13 @@ const MEMORY_LABELS = {
   '2': '2/32GB',
 };
 
-// Shared: given os/esim/iface/memory/radioModule/color/stencil, compute model/description/hwid + warnings
-function buildFromParams(os, esim, iface, memory, radioModule, color, stencil, rev){
+// Shared: given os/esim/iface/memory/radioModule/color/stencil/ptid, compute
+// model/description/hwid + warnings. PTID is independent of Navigator Stencil —
+// it's its own field/digit, not derived from Stencil.
+function buildFromParams(os, esim, iface, memory, radioModule, color, stencil, ptid, rev){
   const warnings = [];
   const hasStencilFlag = stencil === 'Yes';
 
-  if(hasStencilFlag && color === 'Dark'){
-    warnings.push('Navigator Stencil + Dark Color has not been defined yet (no letter code exists) — treating as Dark for description/HWID purposes only.');
-  }
   if(radioModule === 'NA' && hasStencilFlag){
     warnings.push('Radio Module NA + Navigator Stencil has never been defined — no country code exists for this combination.');
   }
@@ -745,7 +757,7 @@ function buildFromParams(os, esim, iface, memory, radioModule, color, stencil, r
 
   const regionDesc = radioModule === 'NA' ? 'NA 4G' : 'EM 4G';
   const hasStencil = hasStencilFlag;
-  const hasPTID = hasStencilFlag;
+  const hasPTID = ptid === 'Yes';
 
   const descParts = [];
   descParts.push(`UX700-4G-${model || '?'}`);
@@ -809,11 +821,11 @@ function decodeRun(){
   }
 
   const tokens = raw.split('-');
-  const countryIdx = tokens.findIndex(t=>/^(EU[ABCL]|NA[AB]|WWA)$/.test(t));
+  const countryIdx = tokens.findIndex(t=>/^(EU[ABCDL]|NA[AB]|WWA)$/.test(t));
   renderTrace(tokens, countryIdx);
 
   if(countryIdx === -1){
-    errorBox.innerHTML = '<div class="error">No recognized country/region code found (expected EUA / EUB / EUC / EUL / NAA / NAB / WWA).</div>';
+    errorBox.innerHTML = '<div class="error">No recognized country/region code found (expected EUA / EUB / EUC / EUD / EUL / NAA / NAB / WWA).</div>';
     results.classList.remove('show');
     return;
   }
@@ -846,7 +858,8 @@ function decodeRun(){
     housingMl.textContent = 'Light';
     housingMl.className = 'v';
     document.getElementById('decOutIface').textContent = 'N/A';
-    document.getElementById('decOutPtid').textContent = 'None';
+    document.getElementById('decOutStencil').textContent = 'N/A';
+    document.getElementById('decOutPtid').textContent = 'N/A';
     document.getElementById('decOutDesc').textContent = builtMl ? builtMl.description : '—';
     document.getElementById('decOutHwid').textContent = builtMl ? builtMl.hwid : '—';
 
@@ -870,8 +883,9 @@ function decodeRun(){
   const osDigit = osDigits[1];
   const os = osDigit === '5' ? 'Android' : osDigit === '4' ? 'Linux' : null;
   if(!os) parseWarnings.push(`OS digit "${osDigit||'?'}" not recognized (expected 5=Android, 4=Linux).`);
-  const hasPTIDfromPN = osDigits[2] === '1';
-  if(hasPTIDfromPN !== (countryInfo.stencil === 'Yes')) parseWarnings.push(`PTID digit ("${osDigits[2]}") doesn't match country code expectation for ${countryCode}.`);
+  const ptidDigit = osDigits[2];
+  const ptid = ptidDigit === '1' ? 'Yes' : ptidDigit === '0' ? 'No' : null;
+  if(!ptid) parseWarnings.push(`PTID digit "${ptidDigit||'?'}" not recognized (expected 0=No, 1=Yes).`);
 
   const cDigits = codeSeg.split('');
   if(cDigits.length !== 2) parseWarnings.push(`eSIM/interface/memory segment "${codeSeg}" is not 2 digits as expected — check parsing.`);
@@ -884,7 +898,7 @@ function decodeRun(){
   const esim = esimIface ? esimIface.esim : null;
   const iface = esimIface ? esimIface.iface : null;
 
-  const built = buildFromParams(os, esim, iface, memoryDigit, countryInfo.radioModule, countryInfo.color, countryInfo.stencil, currentDecRev);
+  const built = buildFromParams(os, esim, iface, memoryDigit, countryInfo.radioModule, countryInfo.color, countryInfo.stencil, ptid, currentDecRev);
   const warnings = parseWarnings.concat(built.warnings);
 
   document.getElementById('decOutModel').textContent = built.model ? `UX700-4G-${built.model}` : 'Undefined';
@@ -896,7 +910,8 @@ function decodeRun(){
   housingEl.textContent = countryInfo.color;
   housingEl.className = 'v' + (countryInfo.color==='Dark' ? ' dark' : '');
   document.getElementById('decOutIface').textContent = iface || '—';
-  document.getElementById('decOutPtid').textContent = (built.hasPTID || built.hasStencil) ? 'PTID + STENCIL' : 'None';
+  document.getElementById('decOutStencil').textContent = countryInfo.stencil;
+  document.getElementById('decOutPtid').textContent = ptid || '—';
   document.getElementById('decOutDesc').textContent = built.description;
   document.getElementById('decOutHwid').textContent = built.hwid;
 
@@ -923,6 +938,7 @@ const COUNTRY_CODE_MAP = {
   EUA: {radioModule:'EM', color:'Light', stencil:'No'},
   EUB: {radioModule:'EM', color:'Dark',  stencil:'No'},
   EUC: {radioModule:'EM', color:'Light', stencil:'Yes'},
+  EUD: {radioModule:'EM', color:'Dark',  stencil:'Yes'},
   EUL: {radioModule:'EM', color:'Dark',  stencil:'No'},
   NAA: {radioModule:'NA', color:'Light', stencil:'No'},
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
@@ -941,10 +957,12 @@ const ENCODE_AXES = {
   esim: ['.02','.32'],
   memory: ['1','2'],
   iface: ['RS232','RS485'],
+  ptid: ['Yes','No'],
 };
 
-// One full os/esim/memory/iface cross-product per country code (each code is its
-// own real SKU family now — Interface is independent of Country Code for all of them).
+// One full os/esim/memory/iface/PTID cross-product per country code (each code is
+// its own real SKU family now — Interface is independent of Country Code, and PTID
+// is independent of Navigator Stencil, for all of them).
 const ALL_ENCODE_COMBOS = (function(){
   const combos = [];
   Object.keys(COUNTRY_CODE_MAP).forEach(country=>{
@@ -953,13 +971,15 @@ const ALL_ENCODE_COMBOS = (function(){
       ENCODE_AXES.esim.forEach(esim=>{
         ENCODE_AXES.memory.forEach(memory=>{
           ENCODE_AXES.iface.forEach(iface=>{
-            combos.push({family:'4G', country, radioModule:m.radioModule, color:m.color, stencil:m.stencil, os, esim, memory, iface});
+            ENCODE_AXES.ptid.forEach(ptid=>{
+              combos.push({family:'4G', country, radioModule:m.radioModule, color:m.color, stencil:m.stencil, os, esim, memory, iface, ptid});
+            });
           });
         });
       });
     });
   });
-  // ML combos: 2 fixed SKUs, WiFi-only. Color always Light; no radio/esim/iface/stencil/memory.
+  // ML combos: 2 fixed SKUs, WiFi-only. Color always Light; no radio/esim/iface/stencil/memory/PTID.
   Object.keys(ML_MODELS).forEach(mlKey=>{
     combos.push({family:'ML', mlKey, os: ML_MODELS[mlKey].os, color:'Light'});
   });
@@ -970,7 +990,7 @@ function computePnForCombo(c){
   if(c.family === 'ML') return 'M187-7' + ML_MODELS[c.mlKey].eDigit + '0-32-' + ML_COUNTRY + '-6';
 
   const osDigit = c.os === 'Android' ? '5' : '4';
-  const ptidDigit = c.stencil === 'Yes' ? '1' : '0';
+  const ptidDigit = c.ptid === 'Yes' ? '1' : '0';
   const osSeg = '7' + osDigit + ptidDigit;
 
   let ceDigit = null;
@@ -1030,6 +1050,7 @@ function onModelChange(){
     getEnc('encColor').value = 'Light';
     getEnc('encOs').value = ML_MODELS[model].os;
     getEnc('encStencil').value = '';
+    getEnc('encPtid').value = '';
   } else {
     // 4G model (or empty). If we were in ML mode, clear the WWA-forced fields.
     if(getEnc('encCountryCode').value === ML_COUNTRY){
@@ -1075,6 +1096,7 @@ function onCountryCodeChange(){
     // Entering ML mode via country: Color=Light, derive/keep an ML model from OS.
     getEnc('encColor').value = 'Light';
     getEnc('encStencil').value = '';
+    getEnc('encPtid').value = '';
     if(getEnc('encModel').value.indexOf('ML-') !== 0){
       const os = getEnc('encOs').value;
       getEnc('encModel').value = os === 'Android' ? 'ML-A' : os === 'Linux' ? 'ML-E' : '';
@@ -1208,6 +1230,7 @@ function sortMatches(matches, rev){
     radioModule: c => c.radioModule || 'N/A',
     color: c => c.color,
     stencil: c => c.stencil || 'N/A',
+    ptid: c => c.ptid || 'N/A',
     os: c => c.os,
     esim: c => c.esim || 'N/A',
     memory: c => c.memory || 'N/A',
@@ -1240,7 +1263,7 @@ function renderMatchTable(matches){
   updateSortHeaders();
 
   if(!matches.length){
-    body.innerHTML = '<tr><td colspan="10" class="match-empty">No matching SKU — that combination isn\'t defined (e.g. Radio Module NA + Navigator Stencil, or Navigator Stencil + Dark Color).</td></tr>';
+    body.innerHTML = '<tr><td colspan="11" class="match-empty">No matching SKU — that combination isn\'t defined (e.g. Radio Module NA + Navigator Stencil).</td></tr>';
     return;
   }
 
@@ -1254,6 +1277,7 @@ function renderMatchTable(matches){
         <td>${comboModelName(c)}</td>
         <td>N/A</td>
         <td>${c.color}</td>
+        <td>N/A</td>
         <td>N/A</td>
         <td>${c.os}</td>
         <td>N/A</td>
@@ -1271,6 +1295,7 @@ function renderMatchTable(matches){
       <td>${c.radioModule}</td>
       <td>${c.color}</td>
       <td>${c.stencil}</td>
+      <td>${c.ptid}</td>
       <td>${c.os}</td>
       <td>${c.esim}</td>
       <td>${MEMORY_LABELS[c.memory]}</td>
@@ -1290,6 +1315,7 @@ function encodeRun(){
     radioModule: selVal('encRadioModule'),
     color: getEnc('encColor').value,
     stencil: getEnc('encStencil').value,
+    ptid: getEnc('encPtid').value,
     os: getEnc('encOs').value,
     esim: selVal('encEsim'),
     memory: selVal('encMemory'),
@@ -1301,12 +1327,12 @@ function encodeRun(){
     if(countryCode && comboCountry(c) !== countryCode) return false;
     if(c.family === 'ML'){
       // ML only has OS + Color axes; any 4G-only axis being set excludes ML.
-      if(f.radioModule || f.esim || f.memory || f.iface) return false;
+      if(f.radioModule || f.esim || f.memory || f.iface || f.ptid) return false;
       if(f.os && f.os !== c.os) return false;
       if(f.color && f.color !== c.color) return false;
       return true;
     }
-    return ['radioModule','color','stencil','os','esim','memory','iface'].every(k => !f[k] || f[k] === c[k]);
+    return ['radioModule','color','stencil','ptid','os','esim','memory','iface'].every(k => !f[k] || f[k] === c[k]);
   });
   renderMatchTable(matches);
 
@@ -1323,7 +1349,8 @@ function encodeRun(){
     const b = buildMl(only.mlKey, rev);
     document.getElementById('encOutPn').textContent = b.pn;
     document.getElementById('encOutModel').textContent = b.modelName;
-    document.getElementById('encOutPtid').textContent = 'None';
+    document.getElementById('encOutStencil').textContent = 'N/A';
+    document.getElementById('encOutPtid').textContent = 'N/A';
     document.getElementById('encOutRegionDesc').textContent = 'WW (no cellular)';
     const hMl = document.getElementById('encOutHousing');
     hMl.textContent = 'Light';
@@ -1335,13 +1362,14 @@ function encodeRun(){
     return;
   }
 
-  const built = buildFromParams(only.os, only.esim, only.iface, only.memory, only.radioModule, only.color, only.stencil, rev);
+  const built = buildFromParams(only.os, only.esim, only.iface, only.memory, only.radioModule, only.color, only.stencil, only.ptid, rev);
   const warnings = built.warnings.slice();
   const pn = computePnForCombo(only);
 
   document.getElementById('encOutPn').textContent = pn;
   document.getElementById('encOutModel').textContent = built.model ? `UX700-4G-${built.model}` : 'Undefined';
-  document.getElementById('encOutPtid').textContent = (built.hasPTID || built.hasStencil) ? 'PTID + STENCIL' : 'None';
+  document.getElementById('encOutStencil').textContent = only.stencil;
+  document.getElementById('encOutPtid').textContent = only.ptid;
   document.getElementById('encOutRegionDesc').textContent = built.regionDesc;
   const hEl = document.getElementById('encOutHousing');
   hEl.textContent = only.color;
