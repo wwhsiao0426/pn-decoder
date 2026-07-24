@@ -692,6 +692,7 @@ const COUNTRY_MAP = {
   EUL: {radioModule:'EM', color:'Dark',  stencil:'No'},
   NAA: {radioModule:'NA', color:'Light', stencil:'No'},
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
+  WWA: {radioModule:'WW', color:'Light', stencil:'No'},
 };
 
 const ESIM_IFACE_MAP = {
@@ -702,32 +703,67 @@ const ESIM_IFACE_MAP = {
 };
 
 // ---------- UX700-ML (WiFi-only) ----------
-// ML is a separate, fixed product family: no cellular, no eSIM, no Interface,
-// no Radio Module. Country code is always WWA and Color is always Light. Each
-// model is a single fixed SKU whose only variable is HW Revision (HWID last
-// digit). The "e" digit (2nd of segment 2) selects the model: 1 = ML-A (AVOS/
-// Android), 0 = ML-E (VOS3/Engage).
-const ML_MODELS = {
-  'ML-A': {os:'Android', eDigit:'1', osDesc:'ANDROID'},
-  'ML-E': {os:'Linux',   eDigit:'0', osDesc:'ENGAGE'},
-};
-const ML_COUNTRY = 'WWA';
-
+// ML lacks cellular hardware (no Radio Module, eSIM, or Interface), but
+// otherwise behaves like any other Model Name: Country Code, Color,
+// Navigator Stencil, PTID, OS, Memory, and HW Revision all vary, and
+// Country Code binds to Color/Stencil via the same COUNTRY_MAP/
+// COUNTRY_CODE_MAP as 4G (now including WWA). The "e" digit (2nd of segment
+// 2) selects OS: 1 = Android, 0 = Linux/Engage. Segment 3's first digit is
+// fixed "3" (no eSIM/Interface hardware); the second digit is still Memory.
 function mlKeyFromEDigit(d){
   if(d === '1') return 'ML-A';
   if(d === '0') return 'ML-E';
   return null;
 }
+function mlOsFromEDigit(d){
+  if(d === '1') return 'Android';
+  if(d === '0') return 'Linux';
+  return null;
+}
+// Region token for the Description string: ML has no cellular radio, so it's
+// just the country's region label (no "4G" suffix like the 4G models get).
+function mlRegionDesc(radioModule){
+  if(radioModule === 'WW') return 'WW';
+  return radioModule === 'NA' ? 'NA' : 'EM';
+}
 
-function buildMl(mlKey, rev){
-  const m = ML_MODELS[mlKey];
-  const modelName = 'UX700-' + mlKey;            // UX700-ML-A / UX700-ML-E
-  const pn = 'M187-7' + m.eDigit + '0-32-' + ML_COUNTRY + '-6';
-  const revDigit = rev === 'B' ? '1' : '0';
-  const hwid = 'U605-0007-0290-030-004-A' + revDigit;
-  const description = modelName + ', WW, ' + m.osDesc +
-    ', NO CELL, DB WIF AC/BT/USB, NO PSU, CAMERA, 5/2MP CAMERA, 2GB/32GB, PCI 6';
-  return {mlKey, modelName, pn, hwid, description, os:m.os};
+function buildMl(os, memory, radioModule, color, stencil, ptid, rev, country){
+  const mlKey = os === 'Android' ? 'ML-A' : os === 'Linux' ? 'ML-E' : null;
+  const modelName = mlKey ? ('UX700-' + mlKey) : 'UX700-ML-?';
+  const osDesc = os === 'Android' ? 'ANDROID' : os === 'Linux' ? 'ENGAGE' : '?';
+  const eDigit = os === 'Android' ? '1' : os === 'Linux' ? '0' : '?';
+  const ptidDigit = ptid === 'Yes' ? '1' : '0';
+  const osSeg = '7' + eDigit + ptidDigit;
+  const codeSeg = '3' + (memory || '2');
+  const pn = `M187-${osSeg}-${codeSeg}-${country || '?'}-6`;
+
+  const hasStencil = stencil === 'Yes';
+  const hasPTID = ptid === 'Yes';
+  const regionDesc = mlRegionDesc(radioModule);
+
+  const descParts = [modelName];
+  if(hasStencil) descParts.push('STENCIL');
+  descParts.push(regionDesc);
+  descParts.push(osDesc);
+  descParts.push('NO CELL');
+  descParts.push('DB WIF AC/BT/USB');
+  if(hasPTID) descParts.push('PTID');
+  descParts.push('NO PSU');
+  if(color === 'Dark') descParts.push('DARK');
+  descParts.push('CAMERA');
+  descParts.push('5/2MP CAMERA');
+  descParts.push(MEMORY_LABELS[memory] || '2/32GB');
+  descParts.push('PCI 6');
+  const description = descParts.join(', ');
+
+  let seg4 = '030';
+  if(color === 'Dark') seg4 = seg4.slice(0,2) + 'D';
+  let seg5 = '004';
+  if(hasStencil) seg5 = seg5.slice(0,2) + 'E';
+  const revSuffix = rev === 'B' ? 'A1' : 'A0';
+  const hwid = ['U605','0007','0290',seg4,seg5,revSuffix].join('-');
+
+  return {mlKey, modelName, pn, hwid, description, os, regionDesc, hasStencil, hasPTID};
 }
 
 const MEMORY_LABELS = {
@@ -839,27 +875,36 @@ function decodeRun(){
     parseWarnings.push(`Trailing segment "${trailing}" isn't the usual "6" — always fixed regardless of RS232/RS485, so this is unexpected.`);
   }
 
-  // ---- ML branch (WWA): WiFi-only fixed SKUs, distinct from the 4G scheme ----
-  if(countryCode === 'WWA'){
+  const countryInfo = COUNTRY_MAP[countryCode];
+
+  // ---- ML branch: segment 3's first digit is fixed "3" (no eSIM/Interface
+  // hardware) — that's how ML is distinguished from 4G's 4/5/6/7 first digit.
+  if(codeSeg[0] === '3'){
     const osDigitsMl = osSeg.split('');
     if(osDigitsMl.length !== 3) parseWarnings.push(`OS segment "${osSeg}" is not 3 digits as expected — check parsing.`);
     if(osDigitsMl[0] !== '7') parseWarnings.push(`Unattended digit is "${osDigitsMl[0]||'?'}", expected "7" for UX700-ML.`);
-    const mlKey = mlKeyFromEDigit(osDigitsMl[1]);
-    if(!mlKey) parseWarnings.push(`OS digit "${osDigitsMl[1]||'?'}" not recognized for ML (expected 1 = ML-A / Android, 0 = ML-E / Engage).`);
-    if(codeSeg !== '32') parseWarnings.push(`ML segment "${codeSeg}" isn't the expected "32".`);
+    const osMl = mlOsFromEDigit(osDigitsMl[1]);
+    if(!osMl) parseWarnings.push(`OS digit "${osDigitsMl[1]||'?'}" not recognized for ML (expected 1 = Android, 0 = Linux/Engage).`);
+    const ptidDigitMl = osDigitsMl[2];
+    const ptidMl = ptidDigitMl === '1' ? 'Yes' : ptidDigitMl === '0' ? 'No' : null;
+    if(!ptidMl) parseWarnings.push(`PTID digit "${ptidDigitMl||'?'}" not recognized (expected 0=No, 1=Yes).`);
+    const memDigitMl = codeSeg[1];
+    const memLabelMl = MEMORY_LABELS[memDigitMl];
+    if(!memLabelMl) parseWarnings.push(`Memory digit "${memDigitMl||'?'}" isn't 1 or 2 — only those are confirmed for UX700-ML.`);
+    if(!countryInfo) parseWarnings.push(`Country code "${countryCode}" not recognized.`);
 
-    const builtMl = mlKey ? buildMl(mlKey, currentDecRev) : null;
+    const builtMl = (osMl && countryInfo) ? buildMl(osMl, memDigitMl, countryInfo.radioModule, countryInfo.color, countryInfo.stencil, ptidMl, currentDecRev, countryCode) : null;
     document.getElementById('decOutModel').textContent = builtMl ? builtMl.modelName : 'Undefined';
     document.getElementById('decOutEsim').textContent = 'N/A';
-    document.getElementById('decOutMemory').textContent = '2/32GB';
-    document.getElementById('decOutOs').textContent = builtMl ? builtMl.os : '—';
-    document.getElementById('decOutRegion').textContent = 'WW';
+    document.getElementById('decOutMemory').textContent = memLabelMl || '—';
+    document.getElementById('decOutOs').textContent = osMl || '—';
+    document.getElementById('decOutRegion').textContent = countryInfo ? (countryCode === 'WWA' ? 'WW' : (countryInfo.radioModule === 'NA' ? 'US' : (countryInfo.stencil === 'Yes' ? 'UK' : 'EU'))) : '—';
     const housingMl = document.getElementById('decOutHousing');
-    housingMl.textContent = 'Light';
-    housingMl.className = 'v';
+    housingMl.textContent = countryInfo ? countryInfo.color : '—';
+    housingMl.className = 'v' + (countryInfo && countryInfo.color==='Dark' ? ' dark' : '');
     document.getElementById('decOutIface').textContent = 'N/A';
-    document.getElementById('decOutStencil').textContent = 'N/A';
-    document.getElementById('decOutPtid').textContent = 'N/A';
+    document.getElementById('decOutStencil').textContent = countryInfo ? countryInfo.stencil : '—';
+    document.getElementById('decOutPtid').textContent = ptidMl || '—';
     document.getElementById('decOutDesc').textContent = builtMl ? builtMl.description : '—';
     document.getElementById('decOutHwid').textContent = builtMl ? builtMl.hwid : '—';
 
@@ -874,8 +919,6 @@ function decodeRun(){
     results.classList.add('show');
     return;
   }
-
-  const countryInfo = COUNTRY_MAP[countryCode];
 
   const osDigits = osSeg.split('');
   if(osDigits.length !== 3) parseWarnings.push(`OS/PTID segment "${osSeg}" is not 3 digits as expected — check parsing.`);
@@ -942,6 +985,7 @@ const COUNTRY_CODE_MAP = {
   EUL: {radioModule:'EM', color:'Dark',  stencil:'No'},
   NAA: {radioModule:'NA', color:'Light', stencil:'No'},
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
+  WWA: {radioModule:'WW', color:'Light', stencil:'No'},
 };
 function countryCodeFor(radioModule, color, stencil){
   for(const code in COUNTRY_CODE_MAP){
@@ -960,34 +1004,54 @@ const ENCODE_AXES = {
   ptid: ['Yes','No'],
 };
 
+const ML_AXES = {
+  os: ['Android','Linux'],
+  memory: ['1','2'],
+  ptid: ['Yes','No'],
+};
+
 // One full os/esim/memory/iface/PTID cross-product per country code (each code is
 // its own real SKU family now — Interface is independent of Country Code, and PTID
-// is independent of Navigator Stencil, for all of them).
+// is independent of Navigator Stencil, for all of them). ML gets its own
+// os/memory/PTID cross-product per country code (incl. WWA) — no esim/iface axis,
+// since ML has no eSIM or Interface hardware.
 const ALL_ENCODE_COMBOS = (function(){
   const combos = [];
   Object.keys(COUNTRY_CODE_MAP).forEach(country=>{
     const m = COUNTRY_CODE_MAP[country];
-    ENCODE_AXES.os.forEach(os=>{
-      ENCODE_AXES.esim.forEach(esim=>{
-        ENCODE_AXES.memory.forEach(memory=>{
-          ENCODE_AXES.iface.forEach(iface=>{
-            ENCODE_AXES.ptid.forEach(ptid=>{
-              combos.push({family:'4G', country, radioModule:m.radioModule, color:m.color, stencil:m.stencil, os, esim, memory, iface, ptid});
+    if(country !== 'WWA'){
+      // WWA is ML-exclusive; 4G models never use it.
+      ENCODE_AXES.os.forEach(os=>{
+        ENCODE_AXES.esim.forEach(esim=>{
+          ENCODE_AXES.memory.forEach(memory=>{
+            ENCODE_AXES.iface.forEach(iface=>{
+              ENCODE_AXES.ptid.forEach(ptid=>{
+                combos.push({family:'4G', country, radioModule:m.radioModule, color:m.color, stencil:m.stencil, os, esim, memory, iface, ptid});
+              });
             });
           });
         });
       });
+    }
+    ML_AXES.os.forEach(os=>{
+      ML_AXES.memory.forEach(memory=>{
+        ML_AXES.ptid.forEach(ptid=>{
+          combos.push({family:'ML', country, radioModule:m.radioModule, color:m.color, stencil:m.stencil, os, memory, ptid});
+        });
+      });
     });
-  });
-  // ML combos: 2 fixed SKUs, WiFi-only. Color always Light; no radio/esim/iface/stencil/memory/PTID.
-  Object.keys(ML_MODELS).forEach(mlKey=>{
-    combos.push({family:'ML', mlKey, os: ML_MODELS[mlKey].os, color:'Light'});
   });
   return combos;
 })();
 
 function computePnForCombo(c){
-  if(c.family === 'ML') return 'M187-7' + ML_MODELS[c.mlKey].eDigit + '0-32-' + ML_COUNTRY + '-6';
+  if(c.family === 'ML'){
+    const eDigit = c.os === 'Android' ? '1' : '0';
+    const ptidDigit = c.ptid === 'Yes' ? '1' : '0';
+    const osSeg = '7' + eDigit + ptidDigit;
+    const codeSeg = '3' + c.memory;
+    return `M187-${osSeg}-${codeSeg}-${c.country}-6`;
+  }
 
   const osDigit = c.os === 'Android' ? '5' : '4';
   const ptidDigit = c.ptid === 'Yes' ? '1' : '0';
@@ -1011,9 +1075,9 @@ function comboModel(c){
 }
 
 // Model-dropdown key ('A'/'B'/'E'/'F' for 4G, 'ML-A'/'ML-E' for ML) and full display name.
-function comboModelKey(c){ return c.family === 'ML' ? c.mlKey : comboModel(c); }
-function comboModelName(c){ return c.family === 'ML' ? ('UX700-' + c.mlKey) : ('UX700-4G-' + comboModel(c)); }
-function comboCountry(c){ return c.family === 'ML' ? ML_COUNTRY : c.country; }
+function comboModelKey(c){ return c.family === 'ML' ? (c.os === 'Android' ? 'ML-A' : 'ML-E') : comboModel(c); }
+function comboModelName(c){ return c.family === 'ML' ? ('UX700-' + comboModelKey(c)) : ('UX700-4G-' + comboModel(c)); }
+function comboCountry(c){ return c.country; }
 
 // Model <-> (eSIM, OS) is a two-way binding: picking one side fills the other.
 const MODEL_TO_ESIM_OS = {
@@ -1034,40 +1098,46 @@ let syncingModelFields = false;
 let syncingCountryFields = false;
 
 function getEnc(id){ return document.getElementById(id); }
-function inMlMode(){
+// WWA is ML-exclusive (no 4G model can use it); an A/B/E/F model is 4G-exclusive.
+// Any other country code (EUA/EUB/EUC/EUD/EUL/NAA/NAB) is valid for either family,
+// so family is only forced by Model or by Country Code === WWA.
+function definitelyMl(){
   const model = getEnc('encModel').value;
   const country = getEnc('encCountryCode').value;
-  return model.indexOf('ML-') === 0 || country === ML_COUNTRY;
+  return model.indexOf('ML-') === 0 || country === 'WWA';
+}
+function definitely4G(){
+  const model = getEnc('encModel').value;
+  return model === 'A' || model === 'B' || model === 'E' || model === 'F';
 }
 
 function onModelChange(){
   const model = getEnc('encModel').value;
   syncingModelFields = true;
-  syncingCountryFields = true;
   if(model.indexOf('ML-') === 0){
-    // Entering ML mode via model: pin country=WWA / Color=Light / OS, clear 4G-only parts.
-    getEnc('encCountryCode').value = ML_COUNTRY;
-    getEnc('encColor').value = 'Light';
-    getEnc('encOs').value = ML_MODELS[model].os;
-    getEnc('encStencil').value = '';
-    getEnc('encPtid').value = '';
+    // ML model: only OS is meaningful (no eSIM axis).
+    getEnc('encOs').value = model === 'ML-A' ? 'Android' : 'Linux';
+    getEnc('encEsim').value = '';
   } else {
-    // 4G model (or empty). If we were in ML mode, clear the WWA-forced fields.
-    if(getEnc('encCountryCode').value === ML_COUNTRY){
-      getEnc('encCountryCode').value = '';
-      getEnc('encColor').value = '';
-    }
     const map = MODEL_TO_ESIM_OS[model];
     getEnc('encEsim').value = map ? map.esim : '';
     getEnc('encOs').value = map ? map.os : '';
+    // WWA is ML-only; a 4G model can't pair with it.
+    if(getEnc('encCountryCode').value === 'WWA'){
+      syncingCountryFields = true;
+      getEnc('encCountryCode').value = '';
+      getEnc('encRadioModule').value = '';
+      getEnc('encColor').value = '';
+      getEnc('encStencil').value = '';
+      syncingCountryFields = false;
+    }
   }
   syncingModelFields = false;
-  syncingCountryFields = false;
   encodeRun();
 }
 
 function onEsimOsChange(){
-  if(inMlMode()){
+  if(definitelyMl()){
     // ML mode: only OS is meaningful; map OS -> ML model.
     const os = getEnc('encOs').value;
     const mlKey = os === 'Android' ? 'ML-A' : os === 'Linux' ? 'ML-E' : '';
@@ -1090,37 +1160,30 @@ function onEsimOsChange(){
 
 function onCountryCodeChange(){
   const code = getEnc('encCountryCode').value;
+  const map = COUNTRY_CODE_MAP[code];
   syncingCountryFields = true;
-  syncingModelFields = true;
-  if(code === ML_COUNTRY){
-    // Entering ML mode via country: Color=Light, derive/keep an ML model from OS.
-    getEnc('encColor').value = 'Light';
-    getEnc('encStencil').value = '';
-    getEnc('encPtid').value = '';
-    if(getEnc('encModel').value.indexOf('ML-') !== 0){
-      const os = getEnc('encOs').value;
-      getEnc('encModel').value = os === 'Android' ? 'ML-A' : os === 'Linux' ? 'ML-E' : '';
-    }
-  } else {
-    const map = COUNTRY_CODE_MAP[code];
-    // Leaving ML: if an ML model was selected, clear it.
-    if(getEnc('encModel').value.indexOf('ML-') === 0){
-      getEnc('encModel').value = '';
-      getEnc('encOs').value = '';
-    }
-    getEnc('encRadioModule').value = map ? map.radioModule : '';
-    getEnc('encColor').value = map ? map.color : '';
-    getEnc('encStencil').value = map ? map.stencil : '';
-  }
+  getEnc('encRadioModule').value = map ? map.radioModule : '';
+  getEnc('encColor').value = map ? map.color : '';
+  getEnc('encStencil').value = map ? map.stencil : '';
   syncingCountryFields = false;
-  syncingModelFields = false;
+
+  if(code === 'WWA' && getEnc('encModel').value.indexOf('ML-') !== 0){
+    // WWA is ML-only; a 4G model can't pair with it — derive an ML model from OS.
+    syncingModelFields = true;
+    const os = getEnc('encOs').value;
+    getEnc('encModel').value = os === 'Android' ? 'ML-A' : os === 'Linux' ? 'ML-E' : '';
+    syncingModelFields = false;
+  }
   encodeRun();
 }
 
 function onCountryPartsChange(){
-  if(inMlMode()){
-    // ML mode: radio/eSIM/interface are N/A and Color is pinned to Light; the
-    // parts don't drive the country code here.
+  if(definitelyMl()){
+    // ML's Radio Module is locked/unknown (no cellular hardware to name), so
+    // Color+Stencil alone can't uniquely reverse-derive a Country Code —
+    // several codes share the same Color+Stencil pair across different radio
+    // modules (e.g. EUA/NAA/WWA are all Light+No). Country -> Color/Stencil
+    // still applies via onCountryCodeChange; only the reverse is skipped here.
     encodeRun();
     return;
   }
@@ -1170,17 +1233,14 @@ function selVal(id){ const v = getEnc(id).value; return v === '__NA__' ? '' : v;
 
 // Enforce the ML-vs-4G field constraints on the form UI.
 function applyFormMode(){
-  const ml = inMlMode();
+  const ml = definitelyMl();
   setSelectNA('encRadioModule', ml);
   setSelectNA('encEsim', ml);
-  setSelectNA('encMemory', ml);
   setSelectNA('encIface', ml);
-  // PTID / Navigator Stencil stay usable even in ML mode (see encodeRun): ML has
-  // no hardware for Radio Module/eSIM/Memory/Interface, but PTID/Stencil are left
-  // as free-standing selectors that simply don't affect whether ML matches.
-  setOptionsDisabled('encColor', ['Dark'], ml);   // ML is Light only
-  if(ml && getEnc('encColor').value !== 'Light') getEnc('encColor').value = 'Light';
-  setOptionsDisabled('encModel', ['A','B','E','F'], ml); // WWA/ML -> only ML models
+  // Color / Navigator Stencil / PTID / Memory stay usable in ML mode: ML only
+  // lacks Radio Module/eSIM/Interface hardware, everything else varies like 4G.
+  setOptionsDisabled('encModel', ['A','B','E','F'], ml); // WWA -> only ML models
+  setOptionsDisabled('encCountryCode', ['WWA'], definitely4G()); // 4G model -> no WWA
 }
 
 // Builds the Security HWID for a table row, wrapping whichever single digit
@@ -1203,13 +1263,20 @@ function computeHwidPlain(iface, color, stencil, rev){
   return ['U605', '0007', seg3, seg4, seg5, seg6].join('-');
 }
 
-// ML HWID is fixed except the Rev digit.
-function computeMlHwidHtml(rev){
-  const last = rev === 'B' ? '<span class="hwid-diff">1</span>' : '0';
-  return 'U605-0007-0290-030-004-A' + last;
+// ML HWID: segment 3 stays fixed "0290" (no Interface hardware); Color/Stencil/
+// Rev vary the same way as the 4G HWID (seg4/seg5/seg6).
+function computeMlHwidHtml(color, stencil, rev){
+  const mark = ch => `<span class="hwid-diff">${ch}</span>`;
+  const seg4 = (color === 'Dark') ? ('03' + mark('D')) : '030';
+  const seg5 = (stencil === 'Yes') ? ('00' + mark('E')) : '004';
+  const seg6 = (rev === 'B') ? ('A' + mark('1')) : 'A0';
+  return ['U605', '0007', '0290', seg4, seg5, seg6].join('-');
 }
-function computeMlHwidPlain(rev){
-  return 'U605-0007-0290-030-004-A' + (rev === 'B' ? '1' : '0');
+function computeMlHwidPlain(color, stencil, rev){
+  const seg4 = (color === 'Dark') ? '03D' : '030';
+  const seg5 = (stencil === 'Yes') ? '00E' : '004';
+  const seg6 = (rev === 'B') ? 'A1' : 'A0';
+  return ['U605', '0007', '0290', seg4, seg5, seg6].join('-');
 }
 
 // Click a column header to sort the match table by that column; click again to reverse.
@@ -1230,15 +1297,15 @@ function sortMatches(matches, rev){
   const keyFns = {
     pn: c => computePnForCombo(c),
     model: c => comboModelKey(c),
-    radioModule: c => c.radioModule || 'N/A',
+    radioModule: c => c.family === 'ML' ? 'N/A' : (c.radioModule || 'N/A'),
     color: c => c.color,
     stencil: c => c.stencil || 'N/A',
     ptid: c => c.ptid || 'N/A',
     os: c => c.os,
-    esim: c => c.esim || 'N/A',
+    esim: c => c.family === 'ML' ? 'N/A' : (c.esim || 'N/A'),
     memory: c => c.memory || 'N/A',
-    iface: c => c.iface || 'N/A',
-    hwid: c => c.family === 'ML' ? computeMlHwidPlain(rev) : computeHwidPlain(c.iface, c.color, c.stencil, rev),
+    iface: c => c.family === 'ML' ? 'N/A' : (c.iface || 'N/A'),
+    hwid: c => c.family === 'ML' ? computeMlHwidPlain(c.color, c.stencil, rev) : computeHwidPlain(c.iface, c.color, c.stencil, rev),
   };
   const keyFn = keyFns[matchSort.key];
   return matches.slice().sort((a, b)=>{
@@ -1280,13 +1347,13 @@ function renderMatchTable(matches){
         <td>${comboModelName(c)}</td>
         <td>N/A</td>
         <td>${c.color}</td>
-        <td>N/A</td>
-        <td>N/A</td>
+        <td>${c.stencil}</td>
+        <td>${c.ptid}</td>
         <td>${c.os}</td>
         <td>N/A</td>
-        <td>2/32GB</td>
+        <td>${MEMORY_LABELS[c.memory]}</td>
         <td>N/A</td>
-        <td class="mono">${computeMlHwidHtml(rev)}</td>
+        <td class="mono">${computeMlHwidHtml(c.color, c.stencil, rev)}</td>
       </tr>`;
     }
     const hwid = computeHwidHtml(c.iface, c.color, c.stencil, rev);
@@ -1329,14 +1396,10 @@ function encodeRun(){
     if(model && comboModelKey(c) !== model) return false;
     if(countryCode && comboCountry(c) !== countryCode) return false;
     if(c.family === 'ML'){
-      // ML only has OS + Color axes. Radio Module/eSIM/Memory/Interface don't
-      // exist on ML hardware, so setting any of those excludes it. PTID and
-      // Navigator Stencil are left selectable but simply don't apply to ML —
-      // picking a value there never hides the ML match.
-      if(f.radioModule || f.esim || f.memory || f.iface) return false;
-      if(f.os && f.os !== c.os) return false;
-      if(f.color && f.color !== c.color) return false;
-      return true;
+      // ML has no Radio Module/eSIM/Interface hardware, so setting any of
+      // those excludes it. Color/Stencil/PTID/OS/Memory all apply like 4G.
+      if(f.radioModule || f.esim || f.iface) return false;
+      return ['color','stencil','ptid','os','memory'].every(k => !f[k] || f[k] === c[k]);
     }
     return ['radioModule','color','stencil','ptid','os','esim','memory','iface'].every(k => !f[k] || f[k] === c[k]);
   });
@@ -1352,15 +1415,15 @@ function encodeRun(){
   const warningsList = document.getElementById('encWarningsList');
 
   if(only.family === 'ML'){
-    const b = buildMl(only.mlKey, rev);
+    const b = buildMl(only.os, only.memory, only.radioModule, only.color, only.stencil, only.ptid, rev, only.country);
     document.getElementById('encOutPn').textContent = b.pn;
     document.getElementById('encOutModel').textContent = b.modelName;
-    document.getElementById('encOutStencil').textContent = 'N/A';
-    document.getElementById('encOutPtid').textContent = 'N/A';
-    document.getElementById('encOutRegionDesc').textContent = 'WW (no cellular)';
+    document.getElementById('encOutStencil').textContent = only.stencil;
+    document.getElementById('encOutPtid').textContent = only.ptid;
+    document.getElementById('encOutRegionDesc').textContent = b.regionDesc + ' (no cellular)';
     const hMl = document.getElementById('encOutHousing');
-    hMl.textContent = 'Light';
-    hMl.className = 'v';
+    hMl.textContent = only.color;
+    hMl.className = 'v' + (only.color==='Dark' ? ' dark' : '');
     document.getElementById('encOutDesc').textContent = b.description;
     document.getElementById('encOutHwid').textContent = b.hwid;
     warningsBox.style.display = 'none';
