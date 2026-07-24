@@ -503,7 +503,7 @@ input[type=text]::placeholder{color:var(--muted);}
       </div>
       <div class="field">
         <label>Interface</label>
-        <select id="encIface" onchange="onCountryPartsChange()">
+        <select id="encIface" onchange="encodeRun()">
           <option value="">— select —</option>
           <option value="RS232">RS232</option>
           <option value="RS485">RS485</option>
@@ -883,9 +883,6 @@ function decodeRun(){
 
   const esim = esimIface ? esimIface.esim : null;
   const iface = esimIface ? esimIface.iface : null;
-  if(countryCode === 'EUL' && iface && iface !== 'RS485'){
-    parseWarnings.push('Country code EUL is defined specifically for RS485 — decoded interface doesn\'t match.');
-  }
 
   const built = buildFromParams(os, esim, iface, memoryDigit, countryInfo.radioModule, countryInfo.color, countryInfo.stencil, currentDecRev);
   const warnings = parseWarnings.concat(built.warnings);
@@ -917,57 +914,46 @@ document.getElementById('pnInput').addEventListener('input', decodeRun);
 
 // ---------- ENCODE ----------
 // Country Code <-> (Radio Module, Color, Navigator Stencil) is a two-way binding,
-// same idea as Model <-> (eSIM, OS) below. EUL is a special case: same underlying
-// Radio Module/Color/Stencil triple as EUB, but it's the code actually used when
-// Interface = RS485 for that triple — EUB stays the code for RS232.
+// same idea as Model <-> (eSIM, OS) below. EUL shares the same underlying triple
+// as EUB (Radio Module=EM, Color=Dark, Stencil=No) — RS485 isn't exclusive to any
+// one code (it can pair with any config), so EUL is a manually-selected alternate,
+// not something Interface auto-switches to. Deriving a code FROM the parts always
+// resolves to EUB for that triple; picking EUL is only ever a direct, explicit choice.
 const COUNTRY_CODE_MAP = {
   EUA: {radioModule:'EM', color:'Light', stencil:'No'},
   EUB: {radioModule:'EM', color:'Dark',  stencil:'No'},
   EUC: {radioModule:'EM', color:'Light', stencil:'Yes'},
-  EUL: {radioModule:'EM', color:'Dark',  stencil:'No', iface:'RS485'},
+  EUL: {radioModule:'EM', color:'Dark',  stencil:'No'},
   NAA: {radioModule:'NA', color:'Light', stencil:'No'},
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
 };
-function countryCodeFor(radioModule, color, stencil, iface){
-  let fallback = null;
+function countryCodeFor(radioModule, color, stencil){
   for(const code in COUNTRY_CODE_MAP){
+    if(code === 'EUL') continue; // manual-select-only alternate to EUB, never auto-derived
     const m = COUNTRY_CODE_MAP[code];
-    if(m.radioModule !== radioModule || m.color !== color || m.stencil !== stencil) continue;
-    if(m.iface){
-      if(m.iface === iface) return code; // more specific match wins outright
-    } else {
-      fallback = code;
-    }
+    if(m.radioModule === radioModule && m.color === color && m.stencil === stencil) return code;
   }
-  return fallback;
+  return null;
 }
 
 const ENCODE_AXES = {
-  radioModule: ['EM','NA'],
-  color: ['Light','Dark'],
-  stencil: ['No','Yes'],
   os: ['Android','Linux'],
   esim: ['.02','.32'],
   memory: ['1','2'],
   iface: ['RS232','RS485'],
 };
 
-// Only combinations that resolve to an actually-defined country code are offered
-// (e.g. Radio Module NA + Navigator Stencil, or Navigator Stencil + Dark Color,
-// have never been assigned a letter code, so they're left out entirely).
+// One full os/esim/memory/iface cross-product per country code (each code is its
+// own real SKU family now — Interface is independent of Country Code for all of them).
 const ALL_ENCODE_COMBOS = (function(){
   const combos = [];
-  ENCODE_AXES.radioModule.forEach(radioModule=>{
-    ENCODE_AXES.color.forEach(color=>{
-      ENCODE_AXES.stencil.forEach(stencil=>{
-        if(!countryCodeFor(radioModule, color, stencil)) return;
-        ENCODE_AXES.os.forEach(os=>{
-          ENCODE_AXES.esim.forEach(esim=>{
-            ENCODE_AXES.memory.forEach(memory=>{
-              ENCODE_AXES.iface.forEach(iface=>{
-                combos.push({family:'4G', radioModule, color, stencil, os, esim, memory, iface});
-              });
-            });
+  Object.keys(COUNTRY_CODE_MAP).forEach(country=>{
+    const m = COUNTRY_CODE_MAP[country];
+    ENCODE_AXES.os.forEach(os=>{
+      ENCODE_AXES.esim.forEach(esim=>{
+        ENCODE_AXES.memory.forEach(memory=>{
+          ENCODE_AXES.iface.forEach(iface=>{
+            combos.push({family:'4G', country, radioModule:m.radioModule, color:m.color, stencil:m.stencil, os, esim, memory, iface});
           });
         });
       });
@@ -983,8 +969,6 @@ const ALL_ENCODE_COMBOS = (function(){
 function computePnForCombo(c){
   if(c.family === 'ML') return 'M187-7' + ML_MODELS[c.mlKey].eDigit + '0-32-' + ML_COUNTRY + '-6';
 
-  const country = countryCodeFor(c.radioModule, c.color, c.stencil, c.iface);
-
   const osDigit = c.os === 'Android' ? '5' : '4';
   const ptidDigit = c.stencil === 'Yes' ? '1' : '0';
   const osSeg = '7' + osDigit + ptidDigit;
@@ -996,7 +980,7 @@ function computePnForCombo(c){
   else if(c.esim === '.32' && c.iface === 'RS485') ceDigit = '7';
   const codeSeg = ceDigit + c.memory;
 
-  return `M187-${osSeg}-${codeSeg}-${country}-6`;
+  return `M187-${osSeg}-${codeSeg}-${c.country}-6`;
 }
 
 function comboModel(c){
@@ -1009,7 +993,7 @@ function comboModel(c){
 // Model-dropdown key ('A'/'B'/'E'/'F' for 4G, 'ML-A'/'ML-E' for ML) and full display name.
 function comboModelKey(c){ return c.family === 'ML' ? c.mlKey : comboModel(c); }
 function comboModelName(c){ return c.family === 'ML' ? ('UX700-' + c.mlKey) : ('UX700-4G-' + comboModel(c)); }
-function comboCountry(c){ return c.family === 'ML' ? ML_COUNTRY : countryCodeFor(c.radioModule, c.color, c.stencil, c.iface); }
+function comboCountry(c){ return c.family === 'ML' ? ML_COUNTRY : c.country; }
 
 // Model <-> (eSIM, OS) is a two-way binding: picking one side fills the other.
 const MODEL_TO_ESIM_OS = {
@@ -1105,10 +1089,6 @@ function onCountryCodeChange(){
     getEnc('encRadioModule').value = map ? map.radioModule : '';
     getEnc('encColor').value = map ? map.color : '';
     getEnc('encStencil').value = map ? map.stencil : '';
-    // EUL only exists for RS485 — picking it pins the Interface field too.
-    if(map && map.iface){
-      getEnc('encIface').value = map.iface;
-    }
   }
   syncingCountryFields = false;
   syncingModelFields = false;
@@ -1126,8 +1106,9 @@ function onCountryPartsChange(){
     const radioModule = getEnc('encRadioModule').value;
     const color = getEnc('encColor').value;
     const stencil = getEnc('encStencil').value;
-    const iface = getEnc('encIface').value;
-    const code = (radioModule && color && stencil) ? countryCodeFor(radioModule, color, stencil, iface) : null;
+    // Interface plays no part in this — EUL is only reachable by picking it
+    // directly from the Country Code dropdown, never auto-derived from parts.
+    const code = (radioModule && color && stencil) ? countryCodeFor(radioModule, color, stencil) : null;
     syncingCountryFields = true;
     getEnc('encCountryCode').value = code || '';
     syncingCountryFields = false;
