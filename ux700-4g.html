@@ -386,7 +386,7 @@ input[type=text]::placeholder{color:var(--muted);}
         <button id="decRevB" onclick="setDecRev('B')">Rev B</button>
       </div>
     </div>
-    <p class="hint">Rev A/B isn't encoded in the P/N — select it manually. Country code segment must match <code>EUA</code>, <code>EUB</code>, <code>EUC</code>, <code>EUD</code>, <code>EUL</code>, <code>NAA</code>, <code>NAB</code>, or <code>WWA</code> (WWA = ML models).</p>
+    <p class="hint">Rev A/B isn't encoded in the P/N — select it manually. Country code segment must match <code>EUA</code>, <code>EUB</code>, <code>EUC</code>, <code>EUD</code>, <code>EUL</code>, <code>NAA</code>, <code>NAB</code>, <code>WWA</code>, or <code>WWB</code> (WWA/WWB = ML models).</p>
 
     <div class="trace" id="trace"></div>
     <div id="errorBox"></div>
@@ -453,6 +453,7 @@ input[type=text]::placeholder{color:var(--muted);}
           <option value="NAA">NAA</option>
           <option value="NAB">NAB</option>
           <option value="WWA">WWA</option>
+          <option value="WWB">WWB</option>
         </select>
       </div>
       <div class="field">
@@ -665,7 +666,7 @@ input[type=text]::placeholder{color:var(--muted);}
     </div>
 
     <p class="ref-note">Amber-highlighted rows are the values this decoder currently covers (UX700-4G and UX700-ML, Unattended). Other rows document the full UX700 M-Level part number scheme for reference.</p>
-    <p class="ref-note">UX700-ML (WiFi-only) models: e = 0 &rarr; UX700-ML-E (Engage), e = 1 &rarr; UX700-ML-A (Android). Country code = WWA, Color = Light only, no eSIM / Radio Module / Interface. P/N e.g. M187-710-32-WWA-6; HWID U605-0007-0290-030-004-Ax.</p>
+    <p class="ref-note">UX700-ML (WiFi-only) models: e = 0 &rarr; UX700-ML-E (Engage), e = 1 &rarr; UX700-ML-A (Android). Country code = WWA (Light) or WWB (Dark), no eSIM / Radio Module / Interface. P/N e.g. M187-710-32-WWA-6; HWID U605-0007-0290-030-004-Ax.</p>
   </div>
 </div>
 
@@ -693,6 +694,7 @@ const COUNTRY_MAP = {
   NAA: {radioModule:'NA', color:'Light', stencil:'No'},
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
   WWA: {radioModule:'WW', color:'Light', stencil:'No'},
+  WWB: {radioModule:'WW', color:'Dark',  stencil:'No'},
 };
 
 const ESIM_IFACE_MAP = {
@@ -707,7 +709,7 @@ const ESIM_IFACE_MAP = {
 // otherwise behaves like any other Model Name: Country Code, Color,
 // Navigator Stencil, PTID, OS, Memory, and HW Revision all vary, and
 // Country Code binds to Color/Stencil via the same COUNTRY_MAP/
-// COUNTRY_CODE_MAP as 4G (now including WWA). The "e" digit (2nd of segment
+// COUNTRY_CODE_MAP as 4G (now including WWA/WWB). The "e" digit (2nd of segment
 // 2) selects OS: 1 = Android, 0 = Linux/Engage. Segment 3's first digit is
 // fixed "3" (no eSIM/Interface hardware); the second digit is still Memory.
 function mlKeyFromEDigit(d){
@@ -857,11 +859,11 @@ function decodeRun(){
   }
 
   const tokens = raw.split('-');
-  const countryIdx = tokens.findIndex(t=>/^(EU[ABCDL]|NA[AB]|WWA)$/.test(t));
+  const countryIdx = tokens.findIndex(t=>/^(EU[ABCDL]|NA[AB]|WW[AB])$/.test(t));
   renderTrace(tokens, countryIdx);
 
   if(countryIdx === -1){
-    errorBox.innerHTML = '<div class="error">No recognized country/region code found (expected EUA / EUB / EUC / EUD / EUL / NAA / NAB / WWA).</div>';
+    errorBox.innerHTML = '<div class="error">No recognized country/region code found (expected EUA / EUB / EUC / EUD / EUL / NAA / NAB / WWA / WWB).</div>';
     results.classList.remove('show');
     return;
   }
@@ -898,7 +900,7 @@ function decodeRun(){
     document.getElementById('decOutEsim').textContent = 'N/A';
     document.getElementById('decOutMemory').textContent = memLabelMl || '—';
     document.getElementById('decOutOs').textContent = osMl || '—';
-    document.getElementById('decOutRegion').textContent = countryInfo ? (countryCode === 'WWA' ? 'WW' : (countryInfo.radioModule === 'NA' ? 'US' : (countryInfo.stencil === 'Yes' ? 'UK' : 'EU'))) : '—';
+    document.getElementById('decOutRegion').textContent = countryInfo ? (countryInfo.radioModule === 'WW' ? 'WW' : (countryInfo.radioModule === 'NA' ? 'US' : (countryInfo.stencil === 'Yes' ? 'UK' : 'EU'))) : '—';
     const housingMl = document.getElementById('decOutHousing');
     housingMl.textContent = countryInfo ? countryInfo.color : '—';
     housingMl.className = 'v' + (countryInfo && countryInfo.color==='Dark' ? ' dark' : '');
@@ -986,6 +988,7 @@ const COUNTRY_CODE_MAP = {
   NAA: {radioModule:'NA', color:'Light', stencil:'No'},
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
   WWA: {radioModule:'WW', color:'Light', stencil:'No'},
+  WWB: {radioModule:'WW', color:'Dark',  stencil:'No'},
 };
 function countryCodeFor(radioModule, color, stencil){
   for(const code in COUNTRY_CODE_MAP){
@@ -1013,14 +1016,14 @@ const ML_AXES = {
 // One full os/esim/memory/iface/PTID cross-product per country code (each code is
 // its own real SKU family now — Interface is independent of Country Code, and PTID
 // is independent of Navigator Stencil, for all of them). ML gets its own
-// os/memory/PTID cross-product per country code (incl. WWA) — no esim/iface axis,
+// os/memory/PTID cross-product per country code (incl. WWA/WWB) — no esim/iface axis,
 // since ML has no eSIM or Interface hardware.
 const ALL_ENCODE_COMBOS = (function(){
   const combos = [];
   Object.keys(COUNTRY_CODE_MAP).forEach(country=>{
     const m = COUNTRY_CODE_MAP[country];
-    if(country !== 'WWA'){
-      // WWA is ML-exclusive; 4G models never use it.
+    if(m.radioModule !== 'WW'){
+      // WW-radio-module codes (WWA/WWB) are ML-exclusive; 4G models never use them.
       ENCODE_AXES.os.forEach(os=>{
         ENCODE_AXES.esim.forEach(esim=>{
           ENCODE_AXES.memory.forEach(memory=>{
@@ -1098,13 +1101,14 @@ let syncingModelFields = false;
 let syncingCountryFields = false;
 
 function getEnc(id){ return document.getElementById(id); }
-// WWA is ML-exclusive (no 4G model can use it); an A/B/E/F model is 4G-exclusive.
+// WWA/WWB are ML-exclusive (no 4G model can use them); an A/B/E/F model is 4G-exclusive.
 // Any other country code (EUA/EUB/EUC/EUD/EUL/NAA/NAB) is valid for either family,
-// so family is only forced by Model or by Country Code === WWA.
+// so family is only forced by Model or by a WW-radio-module Country Code.
 function definitelyMl(){
   const model = getEnc('encModel').value;
   const country = getEnc('encCountryCode').value;
-  return model.indexOf('ML-') === 0 || country === 'WWA';
+  const countryInfo = COUNTRY_CODE_MAP[country];
+  return model.indexOf('ML-') === 0 || (countryInfo && countryInfo.radioModule === 'WW');
 }
 function definitely4G(){
   const model = getEnc('encModel').value;
@@ -1122,8 +1126,10 @@ function onModelChange(){
     const map = MODEL_TO_ESIM_OS[model];
     getEnc('encEsim').value = map ? map.esim : '';
     getEnc('encOs').value = map ? map.os : '';
-    // WWA is ML-only; a 4G model can't pair with it.
-    if(getEnc('encCountryCode').value === 'WWA'){
+    // WWA/WWB are ML-only; a 4G model can't pair with them.
+    const ccVal = getEnc('encCountryCode').value;
+    const ccInfo = COUNTRY_CODE_MAP[ccVal];
+    if(ccInfo && ccInfo.radioModule === 'WW'){
       syncingCountryFields = true;
       getEnc('encCountryCode').value = '';
       getEnc('encRadioModule').value = '';
@@ -1167,8 +1173,8 @@ function onCountryCodeChange(){
   getEnc('encStencil').value = map ? map.stencil : '';
   syncingCountryFields = false;
 
-  if(code === 'WWA' && getEnc('encModel').value.indexOf('ML-') !== 0){
-    // WWA is ML-only; a 4G model can't pair with it — derive an ML model from OS.
+  if(map && map.radioModule === 'WW' && getEnc('encModel').value.indexOf('ML-') !== 0){
+    // WWA/WWB are ML-only; a 4G model can't pair with them — derive an ML model from OS.
     syncingModelFields = true;
     const os = getEnc('encOs').value;
     getEnc('encModel').value = os === 'Android' ? 'ML-A' : os === 'Linux' ? 'ML-E' : '';
@@ -1182,7 +1188,7 @@ function onCountryPartsChange(){
     // ML's Radio Module is locked/unknown (no cellular hardware to name), so
     // Color+Stencil alone can't uniquely reverse-derive a Country Code —
     // several codes share the same Color+Stencil pair across different radio
-    // modules (e.g. EUA/NAA/WWA are all Light+No). Country -> Color/Stencil
+    // modules (e.g. EUA/NAA/WWA are all Light+No, EUB/NAB/EUL/WWB are all Dark+No). Country -> Color/Stencil
     // still applies via onCountryCodeChange; only the reverse is skipped here.
     encodeRun();
     return;
@@ -1239,8 +1245,8 @@ function applyFormMode(){
   setSelectNA('encIface', ml);
   // Color / Navigator Stencil / PTID / Memory stay usable in ML mode: ML only
   // lacks Radio Module/eSIM/Interface hardware, everything else varies like 4G.
-  setOptionsDisabled('encModel', ['A','B','E','F'], ml); // WWA -> only ML models
-  setOptionsDisabled('encCountryCode', ['WWA'], definitely4G()); // 4G model -> no WWA
+  setOptionsDisabled('encModel', ['A','B','E','F'], ml); // WWA/WWB -> only ML models
+  setOptionsDisabled('encCountryCode', ['WWA','WWB'], definitely4G()); // 4G model -> no WWA/WWB
 }
 
 // Builds the Security HWID for a table row, wrapping whichever single digit
