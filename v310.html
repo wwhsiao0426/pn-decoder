@@ -135,26 +135,6 @@ input[type=text]{
 }
 input[type=text]:focus{border-color:var(--amber);}
 input[type=text]::placeholder{color:var(--muted);}
-.rev-toggle{
-  display:flex;
-  border:1px solid var(--line);
-  border-radius:6px;
-  overflow:hidden;
-}
-.rev-toggle button{
-  background:var(--panel);
-  color:var(--muted);
-  border:none;
-  font-family:var(--mono);
-  font-size:13px;
-  padding:0 16px;
-  cursor:pointer;
-}
-.rev-toggle button.active{
-  background:var(--amber);
-  color:#1a1200;
-  font-weight:600;
-}
 .hint{
   font-size:12px;
   color:var(--muted);
@@ -364,12 +344,8 @@ input[type=text]::placeholder{color:var(--muted);}
   <div class="panel active" id="panelDecode">
     <div class="input-row">
       <input type="text" id="pnInput" placeholder="e.g. M208-350-11-EUA" autocomplete="off" spellcheck="false">
-      <div class="rev-toggle">
-        <button id="decRevA" class="active" onclick="setDecRev('A')">Rev A</button>
-        <button id="decRevB" onclick="setDecRev('B')">Rev B</button>
-      </div>
     </div>
-    <p class="hint">Rev A/B isn't encoded in the P/N — select it manually. Country code segment must match <code>EUA</code>, <code>EUB</code>, <code>EUC</code>, <code>EUD</code>, <code>EUL</code>, <code>NAA</code>, or <code>NAB</code>. Security HWID for V310 is still being finalized by the Verifone security team — only one confirmed example is reproduced here; everything else shows as pending.</p>
+    <p class="hint">Country code segment must be <code>EUA</code> — that's the only one defined for V310 so far; more will be added once Verifone defines them. Navigator Stencil and HW Revision aren't defined for V310 yet (shown as N/A). Security HWID is still being finalized by the Verifone security team — only one confirmed example is reproduced here; everything else shows as pending.</p>
 
     <div class="trace" id="trace"></div>
     <div id="errorBox"></div>
@@ -389,10 +365,12 @@ input[type=text]::placeholder{color:var(--muted);}
         </div>
         <div class="card">
           <p class="card-title">HW Config</p>
+          <div class="kv"><span class="k">Radio Module</span><span class="v" id="decOutRadio">—</span></div>
           <div class="kv"><span class="k">Region</span><span class="v" id="decOutRegion">—</span></div>
           <div class="kv"><span class="k">Color</span><span class="v" id="decOutHousing">—</span></div>
           <div class="kv"><span class="k">Interface</span><span class="v" id="decOutIface">—</span></div>
           <div class="kv"><span class="k">Navigator Stencil</span><span class="v" id="decOutStencil">—</span></div>
+          <div class="kv"><span class="k">HW Revision</span><span class="v" id="decOutRev">—</span></div>
           <div class="kv"><span class="k">PTID</span><span class="v" id="decOutPtid">—</span></div>
         </div>
       </div>
@@ -414,48 +392,36 @@ input[type=text]::placeholder{color:var(--muted);}
     <div class="field-grid">
       <div class="field">
         <label>Model Name</label>
-        <select id="encModel" onchange="onModelChange()">
+        <select id="encModel" onchange="encodeRun()">
           <option value="">— select —</option>
           <option value="V310-A">V310-A</option>
-          <option value="V310-E">V310-E</option>
         </select>
       </div>
       <div class="field">
         <label>Country Code</label>
-        <select id="encCountryCode" onchange="onCountryCodeChange()">
+        <select id="encCountryCode" onchange="encodeRun()">
           <option value="">— select —</option>
           <option value="EUA">EUA</option>
-          <option value="EUB">EUB</option>
-          <option value="EUC">EUC</option>
-          <option value="EUD">EUD</option>
-          <option value="EUL">EUL</option>
-          <option value="NAA">NAA</option>
-          <option value="NAB">NAB</option>
         </select>
       </div>
       <div class="field">
         <label>Radio Module</label>
-        <select id="encRadioModule" onchange="onCountryPartsChange()">
+        <select id="encRadio" onchange="encodeRun()">
           <option value="">— select —</option>
-          <option value="NA">NA</option>
-          <option value="EM">EM</option>
+          <option value="4G">4G LTE</option>
+          <option value="WiFi">WiFi only</option>
         </select>
       </div>
       <div class="field">
         <label>Color</label>
-        <select id="encColor" onchange="onCountryPartsChange()">
+        <select id="encColor" onchange="encodeRun()">
           <option value="">— select —</option>
-          <option value="Light">Light</option>
-          <option value="Dark">Dark</option>
+          <option value="White">White</option>
         </select>
       </div>
-      <div class="field">
+      <div class="field na">
         <label>Navigator Stencil</label>
-        <select id="encStencil" onchange="onCountryPartsChange()">
-          <option value="">— select —</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
+        <select disabled><option>N/A</option></select>
       </div>
       <div class="field">
         <label>PTID</label>
@@ -470,7 +436,7 @@ input[type=text]::placeholder{color:var(--muted);}
         <select id="encSimType" onchange="encodeRun()">
           <option value="">— select —</option>
           <option value="SIM">SIM</option>
-          <option value="eSIM32">eSIM32</option>
+          <option value="eSIM">eSIM</option>
         </select>
       </div>
       <div class="field">
@@ -484,13 +450,9 @@ input[type=text]::placeholder{color:var(--muted);}
         <label>Interface</label>
         <select disabled><option>N/A</option></select>
       </div>
-      <div class="field">
+      <div class="field na">
         <label>HW Revision</label>
-        <select id="encRev" onchange="encodeRun()">
-          <option value="">— select —</option>
-          <option value="A">Rev A</option>
-          <option value="B">Rev B</option>
-        </select>
+        <select disabled><option>N/A</option></select>
       </div>
     </div>
 
@@ -505,9 +467,8 @@ input[type=text]::placeholder{color:var(--muted);}
             <tr>
               <th data-key="pn" onclick="onSortClick('pn')">P/N<span class="sort-arrow"></span></th>
               <th data-key="model" onclick="onSortClick('model')">Model Name<span class="sort-arrow"></span></th>
-              <th data-key="radioModule" onclick="onSortClick('radioModule')">Radio Module<span class="sort-arrow"></span></th>
+              <th data-key="radio" onclick="onSortClick('radio')">Radio Module<span class="sort-arrow"></span></th>
               <th data-key="color" onclick="onSortClick('color')">Color<span class="sort-arrow"></span></th>
-              <th data-key="stencil" onclick="onSortClick('stencil')">Stencil<span class="sort-arrow"></span></th>
               <th data-key="ptid" onclick="onSortClick('ptid')">PTID<span class="sort-arrow"></span></th>
               <th data-key="simType" onclick="onSortClick('simType')">SIM Type<span class="sort-arrow"></span></th>
               <th data-key="memory" onclick="onSortClick('memory')">Memory<span class="sort-arrow"></span></th>
@@ -535,9 +496,9 @@ input[type=text]::placeholder{color:var(--muted);}
         </div>
         <div class="card">
           <p class="card-title">HW Config</p>
+          <div class="kv"><span class="k">Radio Module</span><span class="v" id="encOutRadio">—</span></div>
           <div class="kv"><span class="k">Region</span><span class="v" id="encOutRegionDesc">—</span></div>
           <div class="kv"><span class="k">Color</span><span class="v" id="encOutHousing">—</span></div>
-          <div class="kv"><span class="k">Navigator Stencil</span><span class="v" id="encOutStencil">—</span></div>
         </div>
       </div>
       <div class="desc-card">
@@ -581,16 +542,17 @@ input[type=text]::placeholder{color:var(--muted);}
     </div>
 
     <div class="ref-segment">
-      <p class="ref-segment-title"><b>e</b> = Smart Module &amp; Wireless Features</p>
+      <p class="ref-segment-title"><b>e</b> = Radio Module &amp; Wireless Features</p>
       <table class="ref-table">
         <tr><td class="ref-code">0</td><td>QCM2290, EM or NA, 4G LTE, DB WiFi 802.11ac, Bluetooth 5.0, VOS3</td></tr>
-        <tr><td class="ref-code">1</td><td>QCS2290, DB WiFi 802.11ac, Bluetooth 5.0, AVOS</td></tr>
+        <tr class="ref-current"><td class="ref-code">1</td><td class="ref-highlight">QCS2290, DB WiFi 802.11ac, Bluetooth 5.0, AVOS &mdash; Android, WiFi only</td></tr>
         <tr><td class="ref-code">2</td><td>Reserved</td></tr>
         <tr><td class="ref-code">3</td><td>Reserved</td></tr>
-        <tr class="ref-current"><td class="ref-code">4</td><td class="ref-highlight">QCM2290, EM or NA, 4G LTE, DB WiFi 802.11ac, Bluetooth 5.0, VOS3 (V310-E)</td></tr>
-        <tr class="ref-current"><td class="ref-code">5</td><td class="ref-highlight">QCM2290, EM or NA, 4G LTE, DB WiFi 802.11ac, Bluetooth 5.0, VAOS / Android (V310-A)</td></tr>
+        <tr><td class="ref-code">4</td><td>QCM2290, EM or NA, 4G LTE, DB WiFi 802.11ac, Bluetooth 5.0, VOS3</td></tr>
+        <tr class="ref-current"><td class="ref-code">5</td><td class="ref-highlight">QCM2290, EM or NA, 4G LTE, DB WiFi 802.11ac, Bluetooth 5.0, VAOS &mdash; Android, 4G LTE</td></tr>
         <tr><td class="ref-code">6</td><td>Reserved</td></tr>
       </table>
+      <p class="ref-note">V310-A is Android-only for now, so this decoder only exposes the Radio Module choice (4G LTE vs WiFi only) — codes 0/4 (VOS3 / non-Android) aren't offered since no non-Android V310 model is defined yet.</p>
     </div>
 
     <div class="ref-segment">
@@ -606,7 +568,7 @@ input[type=text]::placeholder{color:var(--muted);}
       <table class="ref-table">
         <tr><td class="ref-code">0</td><td>Reserved</td></tr>
         <tr class="ref-current"><td class="ref-code">1</td><td class="ref-highlight">0.3MP FF Rear Camera, Haptics, SIM, SIM/SAM, EBS 100 Keypad</td></tr>
-        <tr class="ref-current"><td class="ref-code">2</td><td class="ref-highlight">0.3MP FF Rear Camera, Haptics, eSIM32, SIM, SAM, EBS 100 Keypad</td></tr>
+        <tr class="ref-current"><td class="ref-code">2</td><td class="ref-highlight">0.3MP FF Rear Camera, Haptics, eSIM, SIM, SAM, EBS 100 Keypad</td></tr>
         <tr><td class="ref-code">3</td><td>Reserved</td></tr>
       </table>
     </div>
@@ -623,14 +585,13 @@ input[type=text]::placeholder{color:var(--muted);}
     <div class="ref-segment">
       <p class="ref-segment-title"><b>xxn</b> = Country code and localization</p>
       <table class="ref-table">
-        <tr><td colspan="2">Includes customization for labelling, colour, branding</td></tr>
-        <tr><td colspan="2">Includes customization for eSIM carrier configuration</td></tr>
+        <tr class="ref-current"><td class="ref-code">EUA</td><td class="ref-highlight">EM region, White housing — the only country code defined for V310 so far</td></tr>
       </table>
-      <p class="ref-note">This is the segment the DECODE / ENCODE tabs work with (Radio Module, Color, Navigator Stencil) — the same country-code scheme used by the other decoders on this site.</p>
+      <p class="ref-note">Includes customization for labelling, colour, and branding, and for eSIM carrier configuration — same general scheme as the other decoders on this site. Other country codes and colors aren't defined for V310 yet; they'll be added here once Verifone defines them. Navigator Stencil and HW Revision are also not yet defined for V310 (shown as N/A).</p>
     </div>
 
-    <p class="ref-note">Amber-highlighted rows are the values this decoder currently covers (V310, Portable). Other rows document the full M-Level part number scheme for reference.</p>
-    <p class="ref-note">Security HWID is not yet fully defined by the Verifone security team. Only one confirmed example is known: <code>M208-350-11-EUA</code> &rarr; <code>H310-0007-02D0-17W-004-A0</code>. This decoder reproduces that exact combination and shows "Pending Security Team definition" for everything else — it does not guess at how Color, SIM Type, PTID, or HW Revision would change the HWID.</p>
+    <p class="ref-note">Amber-highlighted rows are the values this decoder currently covers (V310-A, Portable). Other rows document the full M-Level part number scheme for reference.</p>
+    <p class="ref-note">Security HWID is not yet fully defined by the Verifone security team. Only one confirmed example is known: <code>M208-350-11-EUA</code> &rarr; <code>H310-0007-02D0-17W-004-A0</code>. This decoder reproduces that exact combination (4G LTE, no PTID, SIM) and shows "Pending Security Team definition" for everything else — it does not guess at how Radio Module or SIM Type would change the HWID.</p>
   </div>
 </div>
 
@@ -649,26 +610,21 @@ function copyText(id){
   navigator.clipboard.writeText(t);
 }
 
-// Shared country-code scheme (same EUA/EUB/EUC/EUD/EUL/NAA/NAB used by the other decoders).
+// Only EUA is defined for V310 so far (EM region, White housing). Navigator
+// Stencil isn't defined for V310 at all — there's no country variant for it yet.
 const COUNTRY_MAP = {
-  EUA: {radioModule:'EM', color:'Light', stencil:'No'},
-  EUB: {radioModule:'EM', color:'Dark',  stencil:'No'},
-  EUC: {radioModule:'EM', color:'Light', stencil:'Yes'},
-  EUD: {radioModule:'EM', color:'Dark',  stencil:'Yes'},
-  EUL: {radioModule:'EM', color:'Dark',  stencil:'No'},
-  NAA: {radioModule:'NA', color:'Light', stencil:'No'},
-  NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
+  EUA: {region:'EM', color:'White'},
 };
 
-// Model Name <-> "e" digit: e=4 -> V310-E (VOS3), e=5 -> V310-A (Android). Model IS
-// the OS for V310 — there's no separate eSIM/PSCR axis folded into the letter.
-const MODEL_TO_E = {'V310-A':'5', 'V310-E':'4'};
-const E_TO_MODEL = {'5':'V310-A', '4':'V310-E'};
-const OS_LABEL = {'V310-A':'Android', 'V310-E':'VOS3'};
+// "e" digit = Radio Module (cellular vs WiFi-only), not the model/OS — V310 is
+// Android-only for now, so Model Name doesn't vary with this digit.
+const RADIO_TO_E = {'4G':'5', 'WiFi':'1'};
+const E_TO_RADIO = {'5':'4G', '1':'WiFi'};
+const RADIO_LABEL = {'4G':'4G LTE', 'WiFi':'WiFi only'};
 
 // SIM Type <-> "g" digit (hardware option).
-const SIM_TYPE_TO_G = {'SIM':'1', 'eSIM32':'2'};
-const G_TO_SIM_TYPE = {'1':'SIM', '2':'eSIM32'};
+const SIM_TYPE_TO_G = {'SIM':'1', 'eSIM':'2'};
+const G_TO_SIM_TYPE = {'1':'SIM', '2':'eSIM'};
 
 const MEMORY_LABELS = {'1': '1GB DDR / 8GB Flash'};
 const MEMORY_DESC = {'1': '1/8GB'};
@@ -676,43 +632,32 @@ const MEMORY_DESC = {'1': '1/8GB'};
 // ---------------------------------------------------------------------------
 // Security HWID: the source spec explicitly says "HW ID to be defined by the
 // Verifone security team" — the full rule set isn't confirmed yet. Rather than
-// guess how Color / SIM Type / PTID / HW Revision would change the digits, this
-// only ever reproduces the one Security-Team-confirmed example. Everything else
+// guess how Radio Module / SIM Type / PTID would change the digits, this only
+// ever reproduces the one Security-Team-confirmed example. Everything else
 // reports as pending.
 // ---------------------------------------------------------------------------
-const KNOWN_HWID_COMBO = {model:'V310-A', ptid:'No', simType:'SIM', memory:'1', country:'EUA'};
+const KNOWN_HWID_COMBO = {radio:'4G', ptid:'No', simType:'SIM'};
 const KNOWN_HWID = 'H310-0007-02D0-17W-004-A0';
 const HWID_PENDING = 'Pending Security Team definition';
 
-function computeHwid(model, ptid, simType, memory, country, rev){
-  const isRevA = (rev === 'A' || rev === '' || rev === undefined || rev === null);
-  if(isRevA
-    && model === KNOWN_HWID_COMBO.model
+function computeHwid(radio, ptid, simType){
+  if(radio === KNOWN_HWID_COMBO.radio
     && ptid === KNOWN_HWID_COMBO.ptid
-    && simType === KNOWN_HWID_COMBO.simType
-    && memory === KNOWN_HWID_COMBO.memory
-    && country === KNOWN_HWID_COMBO.country){
+    && simType === KNOWN_HWID_COMBO.simType){
     return KNOWN_HWID;
   }
   return null;
 }
 
-// Shared: given model/ptid/simType/memory/radioModule/color/stencil, compute description.
-// Region token follows the exact wording confirmed by the spec examples: NA -> US,
-// EM + Navigator Stencil -> UK, EM without Stencil -> EM (not "EU" like other products).
-function buildFromParams(model, ptid, simType, memory, radioModule, color, stencil){
-  const osLabel = OS_LABEL[model] || '?';
-  const region = radioModule === 'NA' ? 'US' : (stencil === 'Yes' ? 'UK' : 'EM');
-  const simLabel = simType === 'eSIM32' ? 'eSIM' : (simType === 'SIM' ? 'SIM' : '?');
-
-  const descParts = [model || 'V310-?', region, osLabel, '4G LTE', 'DB WIFI AC/BT/USB'];
-  if(color === 'Dark') descParts.push('DARK');
+// Shared: given radio/ptid/simType/memory/region/color, compute description.
+function buildFromParams(radio, ptid, simType, memory, region, color){
+  const simLabel = simType === 'eSIM' ? 'eSIM' : (simType === 'SIM' ? 'SIM' : '?');
+  const descParts = ['V310-A', region, 'Android', RADIO_LABEL[radio] || '?', 'DB WIFI AC/BT/USB'];
   descParts.push(MEMORY_DESC[memory] || '1/8GB');
   descParts.push(simLabel, 'SIM/SAM', '0.3MP FF CAMERA');
   if(ptid === 'Yes') descParts.push('PTID');
   const description = descParts.join(', ');
-
-  return {description, region, osLabel};
+  return {description, region};
 }
 
 // ---------- DECODE ----------
@@ -729,14 +674,6 @@ function renderTrace(tokens, countryIdx){
   trace.innerHTML = html;
 }
 
-let currentDecRev = 'A';
-function setDecRev(rev){
-  currentDecRev = rev;
-  document.getElementById('decRevA').classList.toggle('active', rev==='A');
-  document.getElementById('decRevB').classList.toggle('active', rev==='B');
-  decodeRun();
-}
-
 function decodeRun(){
   const raw = document.getElementById('pnInput').value.trim().toUpperCase();
   const results = document.getElementById('decResults');
@@ -750,11 +687,11 @@ function decodeRun(){
   }
 
   const tokens = raw.split('-');
-  const countryIdx = tokens.findIndex(t=>/^(EU[ABCDL]|NA[AB])$/.test(t));
+  const countryIdx = tokens.findIndex(t=>/^EUA$/.test(t));
   renderTrace(tokens, countryIdx);
 
   if(countryIdx === -1){
-    errorBox.innerHTML = '<div class="error">No recognized country code found (expected EUA / EUB / EUC / EUD / EUL / NAA / NAB).</div>';
+    errorBox.innerHTML = '<div class="error">No recognized country code found (only EUA is defined for V310 so far).</div>';
     results.classList.remove('show');
     return;
   }
@@ -769,14 +706,13 @@ function decodeRun(){
   }
 
   const countryInfo = COUNTRY_MAP[countryCode];
-  if(!countryInfo) parseWarnings.push(`Country code "${countryCode}" not recognized.`);
 
   const osDigits = osSeg.split('');
   if(osDigits.length !== 3) parseWarnings.push(`Segment "${osSeg}" is not 3 digits as expected — check parsing.`);
   if(osDigits[0] !== '3') parseWarnings.push(`Major Hardware Revision digit is "${osDigits[0]||'?'}", expected "3" (Portable) for V310.`);
   const eDigit = osDigits[1];
-  const model = E_TO_MODEL[eDigit];
-  if(!model) parseWarnings.push(`Smart Module digit "${eDigit||'?'}" not recognized (expected 4=V310-E, 5=V310-A).`);
+  const radio = E_TO_RADIO[eDigit];
+  if(!radio) parseWarnings.push(`Radio Module digit "${eDigit||'?'}" not recognized (expected 5=4G LTE, 1=WiFi only).`);
   const fDigit = osDigits[2];
   const ptid = fDigit === '1' ? 'Yes' : fDigit === '0' ? 'No' : null;
   if(!ptid) parseWarnings.push(`Payment Options digit "${fDigit||'?'}" not recognized (expected 0=No PTID, 1=PTID).`);
@@ -785,24 +721,24 @@ function decodeRun(){
   if(cDigits.length !== 2) parseWarnings.push(`Segment "${codeSeg}" is not 2 digits as expected — check parsing.`);
   const gDigit = cDigits[0];
   const simType = G_TO_SIM_TYPE[gDigit];
-  if(!simType) parseWarnings.push(`Hardware Options digit "${gDigit||'?'}" not recognized (expected 1=SIM, 2=eSIM32).`);
+  if(!simType) parseWarnings.push(`Hardware Options digit "${gDigit||'?'}" not recognized (expected 1=SIM, 2=eSIM).`);
   const hDigit = cDigits[1];
   const memoryLabel = MEMORY_LABELS[hDigit];
   if(!memoryLabel) parseWarnings.push(`Memory digit "${hDigit||'?'}" isn't 1 — only that value is confirmed for V310.`);
 
-  const built = (model && countryInfo) ? buildFromParams(model, ptid, simType, hDigit, countryInfo.radioModule, countryInfo.color, countryInfo.stencil) : null;
-  const hwid = (model && countryInfo) ? computeHwid(model, ptid, simType, hDigit, countryCode, currentDecRev) : null;
+  const built = (radio && countryInfo) ? buildFromParams(radio, ptid, simType, hDigit, countryInfo.region, countryInfo.color) : null;
+  const hwid = radio ? computeHwid(radio, ptid, simType) : null;
 
-  document.getElementById('decOutModel').textContent = model || 'Undefined';
+  document.getElementById('decOutModel').textContent = 'V310-A';
   document.getElementById('decOutSimType').textContent = simType || '—';
   document.getElementById('decOutMemory').textContent = memoryLabel || '—';
-  document.getElementById('decOutOs').textContent = built ? built.osLabel : '—';
-  document.getElementById('decOutRegion').textContent = built ? built.region : '—';
-  const housingEl = document.getElementById('decOutHousing');
-  housingEl.textContent = countryInfo ? countryInfo.color : '—';
-  housingEl.className = 'v' + (countryInfo && countryInfo.color==='Dark' ? ' dark' : '');
+  document.getElementById('decOutOs').textContent = 'Android';
+  document.getElementById('decOutRadio').textContent = radio ? RADIO_LABEL[radio] : '—';
+  document.getElementById('decOutRegion').textContent = countryInfo ? countryInfo.region : '—';
+  document.getElementById('decOutHousing').textContent = countryInfo ? countryInfo.color : '—';
   document.getElementById('decOutIface').textContent = 'N/A';
-  document.getElementById('decOutStencil').textContent = countryInfo ? countryInfo.stencil : '—';
+  document.getElementById('decOutStencil').textContent = 'N/A';
+  document.getElementById('decOutRev').textContent = 'N/A';
   document.getElementById('decOutPtid').textContent = ptid || '—';
   document.getElementById('decOutDesc').textContent = built ? built.description : '—';
   const hwidEl = document.getElementById('decOutHwid');
@@ -822,32 +758,22 @@ function decodeRun(){
 document.getElementById('pnInput').addEventListener('input', decodeRun);
 
 // ---------- ENCODE ----------
-const COUNTRY_CODE_MAP = COUNTRY_MAP;
-function countryCodeFor(radioModule, color, stencil){
-  for(const code in COUNTRY_CODE_MAP){
-    if(code === 'EUL') continue; // manual-select-only alternate to EUB, never auto-derived
-    const m = COUNTRY_CODE_MAP[code];
-    if(m.radioModule === radioModule && m.color === color && m.stencil === stencil) return code;
-  }
-  return null;
-}
-
 const ENCODE_AXES = {
-  model: ['V310-A', 'V310-E'],
+  radio: ['4G', 'WiFi'],
   ptid: ['Yes', 'No'],
-  simType: ['SIM', 'eSIM32'],
+  simType: ['SIM', 'eSIM'],
   memory: ['1'],
 };
 
 const ALL_ENCODE_COMBOS = (function(){
   const combos = [];
-  Object.keys(COUNTRY_CODE_MAP).forEach(country=>{
-    const m = COUNTRY_CODE_MAP[country];
-    ENCODE_AXES.model.forEach(model=>{
+  Object.keys(COUNTRY_MAP).forEach(country=>{
+    const m = COUNTRY_MAP[country];
+    ENCODE_AXES.radio.forEach(radio=>{
       ENCODE_AXES.ptid.forEach(ptid=>{
         ENCODE_AXES.simType.forEach(simType=>{
           ENCODE_AXES.memory.forEach(memory=>{
-            combos.push({country, radioModule:m.radioModule, color:m.color, stencil:m.stencil, model, ptid, simType, memory});
+            combos.push({country, region:m.region, color:m.color, radio, ptid, simType, memory});
           });
         });
       });
@@ -857,42 +783,12 @@ const ALL_ENCODE_COMBOS = (function(){
 })();
 
 function computePnForCombo(c){
-  const eDigit = MODEL_TO_E[c.model];
+  const eDigit = RADIO_TO_E[c.radio];
   const fDigit = c.ptid === 'Yes' ? '1' : '0';
   const osSeg = '3' + eDigit + fDigit;
   const gDigit = SIM_TYPE_TO_G[c.simType];
   const codeSeg = gDigit + c.memory;
   return `M208-${osSeg}-${codeSeg}-${c.country}`;
-}
-
-let syncingCountryFields = false;
-
-function onModelChange(){
-  encodeRun();
-}
-
-function onCountryCodeChange(){
-  const code = document.getElementById('encCountryCode').value;
-  const map = COUNTRY_CODE_MAP[code];
-  syncingCountryFields = true;
-  document.getElementById('encRadioModule').value = map ? map.radioModule : '';
-  document.getElementById('encColor').value = map ? map.color : '';
-  document.getElementById('encStencil').value = map ? map.stencil : '';
-  syncingCountryFields = false;
-  encodeRun();
-}
-
-function onCountryPartsChange(){
-  if(!syncingCountryFields){
-    const radioModule = document.getElementById('encRadioModule').value;
-    const color = document.getElementById('encColor').value;
-    const stencil = document.getElementById('encStencil').value;
-    const code = (radioModule && color && stencil) ? countryCodeFor(radioModule, color, stencil) : null;
-    syncingCountryFields = true;
-    document.getElementById('encCountryCode').value = code || '';
-    syncingCountryFields = false;
-  }
-  encodeRun();
 }
 
 // Click a column header to sort the match table by that column; click again to reverse.
@@ -908,18 +804,17 @@ function onSortClick(key){
   encodeRun();
 }
 
-function sortMatches(matches, rev){
+function sortMatches(matches){
   if(!matchSort.key) return matches;
   const keyFns = {
     pn: c => computePnForCombo(c),
-    model: c => c.model,
-    radioModule: c => c.radioModule,
+    model: () => 'V310-A',
+    radio: c => c.radio,
     color: c => c.color,
-    stencil: c => c.stencil,
     ptid: c => c.ptid,
     simType: c => c.simType,
     memory: c => c.memory,
-    hwid: c => computeHwid(c.model, c.ptid, c.simType, c.memory, c.country, rev) || 'zzz',
+    hwid: c => computeHwid(c.radio, c.ptid, c.simType) || 'zzz',
   };
   const keyFn = keyFns[matchSort.key];
   return matches.slice().sort((a, b)=>{
@@ -939,29 +834,28 @@ function updateSortHeaders(){
   });
 }
 
-function renderMatchTable(matches, rev){
+function renderMatchTable(matches){
   document.getElementById('matchTotal').textContent = ALL_ENCODE_COMBOS.length;
   document.getElementById('matchCount').textContent = matches.length;
   const body = document.getElementById('matchTableBody');
   updateSortHeaders();
 
   if(!matches.length){
-    body.innerHTML = '<tr><td colspan="9" class="match-empty">No matching SKU for this combination.</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" class="match-empty">No matching SKU for this combination.</td></tr>';
     return;
   }
 
-  const sorted = sortMatches(matches, rev);
+  const sorted = sortMatches(matches);
   const only = sorted.length === 1;
   body.innerHTML = sorted.map(c=>{
     const pn = computePnForCombo(c);
-    const hwid = computeHwid(c.model, c.ptid, c.simType, c.memory, c.country, rev);
+    const hwid = computeHwid(c.radio, c.ptid, c.simType);
     const rowClass = only ? 'only-row' : '';
     return `<tr class="${rowClass}">
       <td class="mono">${pn}</td>
-      <td>${c.model}</td>
-      <td>${c.radioModule}</td>
+      <td>V310-A</td>
+      <td>${RADIO_LABEL[c.radio]}</td>
       <td>${c.color}</td>
-      <td>${c.stencil}</td>
       <td>${c.ptid}</td>
       <td>${c.simType}</td>
       <td>${MEMORY_LABELS[c.memory]}</td>
@@ -973,11 +867,9 @@ function renderMatchTable(matches, rev){
 function encodeRun(){
   const model = document.getElementById('encModel').value;
   const countryCode = document.getElementById('encCountryCode').value;
-  const rev = document.getElementById('encRev').value;
   const filters = {
-    radioModule: document.getElementById('encRadioModule').value,
     color: document.getElementById('encColor').value,
-    stencil: document.getElementById('encStencil').value,
+    radio: document.getElementById('encRadio').value,
     ptid: document.getElementById('encPtid').value,
     simType: document.getElementById('encSimType').value,
     memory: document.getElementById('encMemory').value,
@@ -985,10 +877,10 @@ function encodeRun(){
 
   const matches = ALL_ENCODE_COMBOS.filter(c=>
     Object.keys(filters).every(k => !filters[k] || filters[k] === c[k])
-    && (!model || model === c.model)
+    && (!model || model === 'V310-A')
     && (!countryCode || countryCode === c.country)
   );
-  renderMatchTable(matches, rev);
+  renderMatchTable(matches);
 
   const results = document.getElementById('encResults');
   if(matches.length !== 1){
@@ -997,19 +889,17 @@ function encodeRun(){
   }
 
   const only = matches[0];
-  const built = buildFromParams(only.model, only.ptid, only.simType, only.memory, only.radioModule, only.color, only.stencil);
+  const built = buildFromParams(only.radio, only.ptid, only.simType, only.memory, only.region, only.color);
   const pn = computePnForCombo(only);
-  const hwid = computeHwid(only.model, only.ptid, only.simType, only.memory, only.country, rev);
+  const hwid = computeHwid(only.radio, only.ptid, only.simType);
 
   document.getElementById('encOutPn').textContent = pn;
-  document.getElementById('encOutModel').textContent = only.model;
+  document.getElementById('encOutModel').textContent = 'V310-A';
   document.getElementById('encOutSimType').textContent = only.simType;
   document.getElementById('encOutPtid').textContent = only.ptid;
+  document.getElementById('encOutRadio').textContent = RADIO_LABEL[only.radio];
   document.getElementById('encOutRegionDesc').textContent = built.region;
-  const hEl = document.getElementById('encOutHousing');
-  hEl.textContent = only.color;
-  hEl.className = 'v' + (only.color==='Dark' ? ' dark' : '');
-  document.getElementById('encOutStencil').textContent = only.stencil;
+  document.getElementById('encOutHousing').textContent = only.color;
   document.getElementById('encOutDesc').textContent = built.description;
   const hwidEl = document.getElementById('encOutHwid');
   hwidEl.textContent = hwid || HWID_PENDING;
