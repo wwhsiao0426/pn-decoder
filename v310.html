@@ -412,6 +412,7 @@ input[type=text]::placeholder{color:var(--muted);}
         <select id="encModel" onchange="onModelChange()">
           <option value="">— select —</option>
           <option value="V310-A">V310-A</option>
+          <option value="V310-B">V310-B</option>
           <option value="V310-E">V310-E</option>
         </select>
       </div>
@@ -459,7 +460,7 @@ input[type=text]::placeholder{color:var(--muted);}
       </div>
       <div class="field">
         <label class="mixed-case">SIM Type</label>
-        <select id="encSimType" onchange="encodeRun()">
+        <select id="encSimType" onchange="onSimTypeChange()">
           <option value="">— select —</option>
           <option value="SIM">SIM</option>
           <option value="eSIM">eSIM</option>
@@ -599,6 +600,7 @@ input[type=text]::placeholder{color:var(--muted);}
         <tr class="ref-current"><td class="ref-code">2</td><td class="ref-highlight">0.3MP FF Rear Camera, Haptics, eSIM, SIM, SAM, EBS 100 Keypad</td></tr>
         <tr><td class="ref-code">3</td><td>Reserved</td></tr>
       </table>
+      <p class="ref-note">This digit also drives Model Name for Android: SIM (1) &rarr; V310-A, eSIM (2) &rarr; V310-B. Linux stays V310-E regardless of SIM Type.</p>
     </div>
 
     <div class="ref-segment">
@@ -618,7 +620,7 @@ input[type=text]::placeholder{color:var(--muted);}
       <p class="ref-note">Includes customization for labelling, colour, and branding, and for eSIM carrier configuration — same general scheme as the other decoders on this site. Other country codes and colors aren't defined for V310 yet; they'll be added here once Verifone defines them. Navigator Stencil and HW Revision are also not yet defined for V310 (shown as N/A).</p>
     </div>
 
-    <p class="ref-note">Amber-highlighted rows are the values this decoder currently covers (V310-A / V310-E, Portable). Other rows document the full M-Level part number scheme for reference.</p>
+    <p class="ref-note">Amber-highlighted rows are the values this decoder currently covers (V310-A / V310-B / V310-E, Portable). Other rows document the full M-Level part number scheme for reference.</p>
     <p class="ref-note">Security HWID is not yet fully defined by the Verifone security team. Only one confirmed example is known: <code>M208-350-11-EUA</code> &rarr; <code>H310-0007-02D0-17W-004-A0</code>. This decoder reproduces that exact combination (Android, 4G LTE, no PTID, SIM) and shows "Pending Security Team definition" for everything else — it does not guess at how OS, Radio Module, or SIM Type would change the HWID.</p>
   </div>
 </div>
@@ -660,10 +662,21 @@ function eDigitFor(os, radio){
   return null;
 }
 const RADIO_LABEL = {'4G':'4G LTE', 'WiFi':'WiFi only'};
-const OS_TO_MODEL = {'Android':'V310-A', 'Linux':'V310-E'};
-const MODEL_TO_OS = {'V310-A':'Android', 'V310-E':'Linux'};
+
+// Model Name: Linux is always V310-E regardless of SIM Type. Android splits by
+// SIM Type — SIM = V310-A, eSIM = V310-B.
+const MODEL_TO_PARAMS = {
+  'V310-A': {os:'Android', simType:'SIM'},
+  'V310-B': {os:'Android', simType:'eSIM'},
+  'V310-E': {os:'Linux',   simType:null},
+};
+function modelFor(os, simType){
+  if(os === 'Linux') return 'V310-E';
+  if(os === 'Android') return simType === 'eSIM' ? 'V310-B' : 'V310-A';
+  return null;
+}
 // Description string uses the exact wording confirmed by the spec examples:
-// "Android" for V310-A, "VOS3" for V310-E.
+// "Android" for V310-A/V310-B, "VOS3" for V310-E.
 const OS_DESC_LABEL = {'Android':'Android', 'Linux':'VOS3'};
 
 // SIM Type <-> "g" digit (hardware option).
@@ -697,7 +710,7 @@ function computeHwid(os, radio, ptid, simType){
 // Shared: given os/radio/ptid/simType/memory/region/color, compute description.
 function buildFromParams(os, radio, ptid, simType, memory, region, color){
   const simLabel = simType === 'eSIM' ? 'eSIM' : (simType === 'SIM' ? 'SIM' : '?');
-  const descParts = [OS_TO_MODEL[os] || 'V310-?', region, OS_DESC_LABEL[os] || '?', RADIO_LABEL[radio] || '?', 'DB WIFI AC/BT/USB'];
+  const descParts = [modelFor(os, simType) || 'V310-?', region, OS_DESC_LABEL[os] || '?', RADIO_LABEL[radio] || '?', 'DB WIFI AC/BT/USB'];
   descParts.push(MEMORY_DESC[memory] || '1/8GB');
   descParts.push(simLabel, 'SIM/SAM', '0.3MP FF CAMERA');
   if(ptid === 'Yes') descParts.push('PTID');
@@ -776,7 +789,7 @@ function decodeRun(){
   const built = (os && radio && countryInfo) ? buildFromParams(os, radio, ptid, simType, hDigit, countryInfo.region, countryInfo.color) : null;
   const hwid = (os && radio) ? computeHwid(os, radio, ptid, simType) : null;
 
-  document.getElementById('decOutModel').textContent = os ? OS_TO_MODEL[os] : 'Undefined';
+  document.getElementById('decOutModel').textContent = os ? (modelFor(os, simType) || 'Undefined') : 'Undefined';
   document.getElementById('decOutSimType').textContent = simType || '—';
   document.getElementById('decOutMemory').textContent = memoryLabel || '—';
   document.getElementById('decOutOs').textContent = os || '—';
@@ -858,7 +871,7 @@ function sortMatches(matches){
   if(!matchSort.key) return matches;
   const keyFns = {
     pn: c => computePnForCombo(c),
-    model: c => OS_TO_MODEL[c.os],
+    model: c => modelFor(c.os, c.simType),
     os: c => c.os,
     radio: c => c.radio,
     color: c => c.color,
@@ -904,7 +917,7 @@ function renderMatchTable(matches){
     const rowClass = only ? 'only-row' : '';
     return `<tr class="${rowClass}">
       <td class="mono">${pn}</td>
-      <td>${OS_TO_MODEL[c.os]}</td>
+      <td>${modelFor(c.os, c.simType)}</td>
       <td>${c.os}</td>
       <td>${RADIO_LABEL[c.radio]}</td>
       <td>${c.color}</td>
@@ -918,22 +931,38 @@ function renderMatchTable(matches){
 
 let syncingModelFields = false;
 
-// Model Name <-> OS is a two-way binding: V310-A = Android, V310-E = Linux.
+// Model Name <-> (OS, SIM Type) is a two-way binding. Linux is always V310-E
+// regardless of SIM Type; Android splits into V310-A (SIM) / V310-B (eSIM), so
+// picking Model alone can resolve SIM Type, but picking OS alone can't resolve
+// Model until SIM Type is also known (for Android).
 function onModelChange(){
   const model = document.getElementById('encModel').value;
+  const p = MODEL_TO_PARAMS[model];
   syncingModelFields = true;
-  document.getElementById('encOs').value = MODEL_TO_OS[model] || '';
+  document.getElementById('encOs').value = p ? p.os : '';
+  if(p && p.simType) document.getElementById('encSimType').value = p.simType;
   syncingModelFields = false;
   encodeRun();
 }
 
+function updateModelFromOsSimType(){
+  const os = document.getElementById('encOs').value;
+  const simType = document.getElementById('encSimType').value;
+  let model = '';
+  if(os === 'Linux') model = 'V310-E';
+  else if(os === 'Android' && simType) model = modelFor(os, simType);
+  syncingModelFields = true;
+  document.getElementById('encModel').value = model;
+  syncingModelFields = false;
+}
+
 function onOsChange(){
-  if(!syncingModelFields){
-    const os = document.getElementById('encOs').value;
-    syncingModelFields = true;
-    document.getElementById('encModel').value = OS_TO_MODEL[os] || '';
-    syncingModelFields = false;
-  }
+  if(!syncingModelFields) updateModelFromOsSimType();
+  encodeRun();
+}
+
+function onSimTypeChange(){
+  if(!syncingModelFields) updateModelFromOsSimType();
   encodeRun();
 }
 
@@ -951,7 +980,7 @@ function encodeRun(){
 
   const matches = ALL_ENCODE_COMBOS.filter(c=>
     Object.keys(filters).every(k => !filters[k] || filters[k] === c[k])
-    && (!model || OS_TO_MODEL[c.os] === model)
+    && (!model || modelFor(c.os, c.simType) === model)
     && (!countryCode || countryCode === c.country)
   );
   renderMatchTable(matches);
@@ -968,7 +997,7 @@ function encodeRun(){
   const hwid = computeHwid(only.os, only.radio, only.ptid, only.simType);
 
   document.getElementById('encOutPn').textContent = pn;
-  document.getElementById('encOutModel').textContent = OS_TO_MODEL[only.os];
+  document.getElementById('encOutModel').textContent = modelFor(only.os, only.simType);
   document.getElementById('encOutOs').textContent = only.os;
   document.getElementById('encOutSimType').textContent = only.simType;
   document.getElementById('encOutPtid').textContent = only.ptid;
