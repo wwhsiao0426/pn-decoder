@@ -386,7 +386,7 @@ input[type=text]::placeholder{color:var(--muted);}
         <button id="decRevB" onclick="setDecRev('B')">Rev B</button>
       </div>
     </div>
-    <p class="hint">Rev A/B isn't encoded in the P/N — select it manually. Country code segment must match <code>EUA</code>, <code>EUB</code>, <code>EUC</code>, <code>EUD</code>, <code>EUL</code>, <code>NAA</code>, <code>NAB</code>, <code>WWA</code>, or <code>WWB</code> (WWA/WWB = ML models).</p>
+    <p class="hint">Rev A/B isn't encoded in the P/N — select it manually. Country code segment must match <code>EUA</code>, <code>EUB</code>, <code>EUC</code>, <code>EUD</code>, <code>EUL</code>, <code>NAA</code>, <code>NAB</code>, <code>WWA</code>, <code>WWB</code>, or <code>TWA</code> (WWA/WWB = ML models; TWA = EUA + Taiwan certification logo on the label).</p>
 
     <div class="trace" id="trace"></div>
     <div id="errorBox"></div>
@@ -454,6 +454,7 @@ input[type=text]::placeholder{color:var(--muted);}
           <option value="NAB">NAB</option>
           <option value="WWA">WWA</option>
           <option value="WWB">WWB</option>
+          <option value="TWA">TWA</option>
         </select>
       </div>
       <div class="field">
@@ -663,6 +664,7 @@ input[type=text]::placeholder{color:var(--muted);}
         <tr><td colspan="2">Includes customization for eSIM carrier configuration</td></tr>
       </table>
       <p class="ref-note">This is the segment the DECODE / ENCODE tabs work with, in more detail (Radio Module, Color, Navigator Stencil).</p>
+      <p class="ref-note">TWA is a manual-select-only alternate to EUA (same Radio Module=EM, Color=Light, Navigator Stencil=No) — the only difference is a Taiwan certification logo printed on the physical label, which isn't a separately decodable digit. P/N e.g. M187-750-42-TWA-6, identical in every other field to M187-750-42-EUA-6.</p>
     </div>
 
     <p class="ref-note">Amber-highlighted rows are the values this decoder currently covers (UX700-4G and UX700-ML, Unattended). Other rows document the full UX700 M-Level part number scheme for reference.</p>
@@ -695,6 +697,7 @@ const COUNTRY_MAP = {
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
   WWA: {radioModule:'WW', color:'Light', stencil:'No'},
   WWB: {radioModule:'WW', color:'Dark',  stencil:'No'},
+  TWA: {radioModule:'EM', color:'Light', stencil:'No'},
 };
 
 const ESIM_IFACE_MAP = {
@@ -859,11 +862,11 @@ function decodeRun(){
   }
 
   const tokens = raw.split('-');
-  const countryIdx = tokens.findIndex(t=>/^(EU[ABCDL]|NA[AB]|WW[AB])$/.test(t));
+  const countryIdx = tokens.findIndex(t=>/^(EU[ABCDL]|NA[AB]|WW[AB]|TWA)$/.test(t));
   renderTrace(tokens, countryIdx);
 
   if(countryIdx === -1){
-    errorBox.innerHTML = '<div class="error">No recognized country/region code found (expected EUA / EUB / EUC / EUD / EUL / NAA / NAB / WWA / WWB).</div>';
+    errorBox.innerHTML = '<div class="error">No recognized country/region code found (expected EUA / EUB / EUC / EUD / EUL / NAA / NAB / WWA / WWB / TWA).</div>';
     results.classList.remove('show');
     return;
   }
@@ -979,6 +982,9 @@ document.getElementById('pnInput').addEventListener('input', decodeRun);
 // one code (it can pair with any config), so EUL is a manually-selected alternate,
 // not something Interface auto-switches to. Deriving a code FROM the parts always
 // resolves to EUB for that triple; picking EUL is only ever a direct, explicit choice.
+// TWA is the same idea again: identical triple to EUA (EM/Light/No) — the only
+// difference is a Taiwan certification logo printed on the physical label, which
+// isn't a decodable field, so TWA is manual-select-only too.
 const COUNTRY_CODE_MAP = {
   EUA: {radioModule:'EM', color:'Light', stencil:'No'},
   EUB: {radioModule:'EM', color:'Dark',  stencil:'No'},
@@ -989,10 +995,11 @@ const COUNTRY_CODE_MAP = {
   NAB: {radioModule:'NA', color:'Dark',  stencil:'No'},
   WWA: {radioModule:'WW', color:'Light', stencil:'No'},
   WWB: {radioModule:'WW', color:'Dark',  stencil:'No'},
+  TWA: {radioModule:'EM', color:'Light', stencil:'No'},
 };
 function countryCodeFor(radioModule, color, stencil){
   for(const code in COUNTRY_CODE_MAP){
-    if(code === 'EUL') continue; // manual-select-only alternate to EUB, never auto-derived
+    if(code === 'EUL' || code === 'TWA') continue; // manual-select-only alternates, never auto-derived
     const m = COUNTRY_CODE_MAP[code];
     if(m.radioModule === radioModule && m.color === color && m.stencil === stencil) return code;
   }
@@ -1102,7 +1109,7 @@ let syncingCountryFields = false;
 
 function getEnc(id){ return document.getElementById(id); }
 // WWA/WWB are ML-exclusive (no 4G model can use them); an A/B/E/F model is 4G-exclusive.
-// Any other country code (EUA/EUB/EUC/EUD/EUL/NAA/NAB) is valid for either family,
+// Any other country code (EUA/EUB/EUC/EUD/EUL/NAA/NAB/TWA) is valid for either family,
 // so family is only forced by Model or by a WW-radio-module Country Code.
 function definitelyMl(){
   const model = getEnc('encModel').value;
